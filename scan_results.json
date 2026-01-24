@@ -1,0 +1,1247 @@
+{
+  "source_frameworks": [
+    "Supabase",
+    "Express"
+  ],
+  "target_frameworks": [
+    "Supabase"
+  ],
+  "source_count": 96,
+  "target_count": 55,
+  "missing": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/opportunities",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audition/demo",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/verify-token",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/magic-link",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/request-audition-invite",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/session",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/activity/job-alerts",
+      "origin": "Express"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/activity/job-alerts/:id/read",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs/match-me",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audition/:projectId/stages",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/start",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/get-upload-metadata",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/register-answer",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/submit-answer",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/create-submission",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/submit-survey",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/support/tickets",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/support/tickets/:id/reply",
+      "origin": "Express"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/support/tickets/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/support/tickets/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/support/tickets",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/submissions/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/submissions/:submissionId/proctoring",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/ensure-complete",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/transcription/settings",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/transcription/settings",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/transcription/trigger",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/job-notifications/trigger",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/webhooks/settings",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/webhooks/settings",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/webhooks/bulk-resend",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/:userId/files",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/fix-all-transcripts",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/recover-incomplete-submissions",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/resend-to-vetted",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/:id/acknowledge",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/:id/extend",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/:id/reset",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/resend-to-vetted",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/submissions/answers/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/answers",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/submissions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/test",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/jobs",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/role-definitions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/jobs/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/vetted/jobs/:id/apply",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/submissions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/submissions/bulk",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/shortlist/:projectId",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/shortlist/:projectId/candidate/:candidateId",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/shortlist/:projectId/candidate/:candidateId/review",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/shortlist/:projectId/stats",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/projects/:projectId/export/csv",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/projects/:projectId/download/resumes",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/projects/:projectId/export/resumes",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/export-jobs/:jobId",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cron/process-exports",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/upload-resume",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/profile/check-resume/:userId",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/set-default-resume",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/link-practice-data",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/unlink-practice-data",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/profile/practice-insights/:userId",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/webhooks/vetted/job-updated",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/exports/resumes",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions/me",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/submissions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/data",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/profile",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/resume",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/applications/bulk",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions/me",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/users/:userId/permissions",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/users/:userId/roles",
+      "origin": "Express"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/:userId/roles/:roleName",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/users/search",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/audit",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/:roleName/users",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/:roleName",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/:roleName",
+      "origin": "Express"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:roleName",
+      "origin": "Express"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_candidate_status",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/receive-job-update",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/process-job-notifications",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/process-job-notifications-scheduled",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_send_profile_webhook",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_candidate_promoted",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_candidate_rejected",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/receive-candidate-scored",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/send-audition-to-vetted",
+      "origin": "Supabase"
+    }
+  ],
+  "all_source": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/opportunities",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audition/demo",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/verify-token",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/magic-link",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/request-audition-invite",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/session",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/activity/job-alerts",
+      "origin": "Express"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/activity/job-alerts/:id/read",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs/match-me",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audition/:projectId/stages",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/start",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/get-upload-metadata",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/register-answer",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/submit-answer",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/create-submission",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/submit-survey",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/support/tickets",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/support/tickets/:id/reply",
+      "origin": "Express"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/support/tickets/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/support/tickets/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/support/tickets",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/submissions/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/submissions/:submissionId/proctoring",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audition/ensure-complete",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/transcription/settings",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/transcription/settings",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/transcription/trigger",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/job-notifications/trigger",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/webhooks/settings",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/webhooks/settings",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/webhooks/bulk-resend",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/:userId/files",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/fix-all-transcripts",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/recover-incomplete-submissions",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/resend-to-vetted",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/:id/acknowledge",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/:id/extend",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/:id/reset",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/resend-to-vetted",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/submissions/answers/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/submissions/answers",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/submissions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/test",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/jobs",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/role-definitions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/jobs/:id",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/vetted/jobs/:id/apply",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/submissions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/vetted/submissions/bulk",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/shortlist/:projectId",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/shortlist/:projectId/candidate/:candidateId",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/shortlist/:projectId/candidate/:candidateId/review",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/shortlist/:projectId/stats",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/projects/:projectId/export/csv",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/projects/:projectId/download/resumes",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/projects/:projectId/export/resumes",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/export-jobs/:jobId",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cron/process-exports",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/upload-resume",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/profile/check-resume/:userId",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/set-default-resume",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/link-practice-data",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/unlink-practice-data",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/profile/practice-insights/:userId",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/webhooks/vetted/job-updated",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/api/exports/resumes",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions/me",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/submissions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/data",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/profile",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/resume",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/applications/bulk",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions/me",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/users/:userId/permissions",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/users/:userId/roles",
+      "origin": "Express"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/:userId/roles/:roleName",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/users/search",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/audit",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/:roleName/users",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "origin": "Express"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "origin": "Express"
+    },
+    {
+      "method": "GET",
+      "path": "/:roleName",
+      "origin": "Express"
+    },
+    {
+      "method": "PUT",
+      "path": "/:roleName",
+      "origin": "Express"
+    },
+    {
+      "method": "DELETE",
+      "path": "/:roleName",
+      "origin": "Express"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_candidate_status",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/receive-job-update",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/process-job-notifications",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/process-job-notifications-scheduled",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/transcribe_audio",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_send_profile_webhook",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_candidate_promoted",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_candidate_rejected",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/receive-candidate-scored",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/send-audition-to-vetted",
+      "origin": "Supabase"
+    }
+  ],
+  "all_target": [
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_ai_question_factory",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_notify_candidates_decision",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_score_candidate_answers",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_audition_submission",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_sendgrid_webhook",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_admin_fix_evals",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_admin_trigger_scoring",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_get_changed_dimensions",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_process_retry_queue",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_backfill_dimension_translations",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_send_stuck_candidates_digest",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_translate_dimensions",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_diagnose_auth",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_regenerate_project_evals",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_profile_update",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_fetch_congrats_profile",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_send_candidate_invites",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_aggregate_candidate_scores",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_resync_project_to_congrats",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_bulk_sync_status",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_check_regeneration_eligibility",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_job_application",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_generate_experience_questions",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_auto_fix_stuck_candidates",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_send_promotion_webhook",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_generate_audition_scaffold",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_refresh_missing_resumes",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_admin_reset_candidate_status",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_send_candidate_webhook",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_transcribe_audio",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_promote_candidate",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_admin_fix_stuck_candidates",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_notify_sourcing_request",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_verify_invitation_token",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_diagnose_stuck_candidates",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_receive_opportunity_created",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_bulk_promote_candidates",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_generate_audition_eval",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_backfill_congrats_applications",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_test_ai_prompt",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_admin_diagnose_candidates",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_unlock_candidate_profile",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/process_bulk_job",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/parse-job-description",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_send_job_webhook",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_generate_role_definition",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_fetch_congrats_answers",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/sync-project-visibility",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_backfill_candidate_scores",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_trigger_scoring",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/secure-shortlist-upload",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_admin_retry_scoring",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_notify_upgrade_request",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_resend_skills_invite",
+      "origin": "Supabase"
+    },
+    {
+      "method": "POST/RPC",
+      "path": "/functions/v1/fn_regenerate_single_question",
+      "origin": "Supabase"
+    }
+  ]
+}

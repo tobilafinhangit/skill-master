@@ -1,0 +1,40 @@
+[
+    {
+        "name": "Echo GET Request",
+        "endpoint": "/get",
+        "method": "GET",
+        "headers": {},
+        "expected_status": 200,
+        "expected_body_contains": [
+            "args",
+            "headers",
+            "url"
+        ]
+    },
+    {
+        "name": "Echo POST Request",
+        "endpoint": "/post",
+        "method": "POST",
+        "headers": {
+            "X-Custom-Header": "test-value"
+        },
+        "body": {
+            "message": "Hello, World!",
+            "timestamp": "2024-01-01T00:00:00Z"
+        },
+        "expected_status": 200,
+        "expected_body_contains": [
+            "data",
+            "headers"
+        ]
+    },
+    {
+        "name": "Auth Endpoint (with env var)",
+        "endpoint": "/headers",
+        "method": "GET",
+        "headers": {
+            "Authorization": "Bearer {{API_TOKEN}}"
+        },
+        "expected_status": 200
+    }
+]
