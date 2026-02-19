@@ -1,12 +1,12 @@
 ---
 name: learning-from-corrections
-description: Use after bug fixes or corrections to update CLAUDE.md with learned anti-patterns. Invoke after fixing mistakes to build project memory.
-version: 1.0.0
+description: Use after bug fixes or corrections to update .claude/rules/ with learned anti-patterns and add a one-liner to the CLAUDE.md index table. Invoke after fixing mistakes to build project memory.
+version: 2.0.0
 ---
 
 # Learning from Corrections
 
-Extracts lessons from mistakes and updates CLAUDE.md to prevent recurrence.
+Extracts lessons from mistakes and writes them to `.claude/rules/` files. Keeps CLAUDE.md as a slim index.
 
 ## When to Use
 - After fixing a bug
@@ -15,6 +15,19 @@ Extracts lessons from mistakes and updates CLAUDE.md to prevent recurrence.
 - Explicitly via `/learning-from-corrections`
 
 ## Workflow
+
+### Step 0: Bootstrap (first run only)
+If `.claude/rules/` directory doesn't exist:
+1. Create `.claude/rules/` directory
+2. Check if CLAUDE.md has a `## Key Rules` table — if not, append one:
+```markdown
+
+## Key Rules (details in `.claude/rules/`)
+
+| Rule | One-liner | File |
+|------|-----------|------|
+```
+This makes the skill work in any project, even if it hasn't been converted to the rules structure yet.
 
 ### Step 1: Identify the Mistake
 If not clear from conversation context, ask:
@@ -25,34 +38,47 @@ If not clear from conversation context, ask:
 - What's the correct pattern?
 - Why does it work?
 
-### Step 3: Categorize
-Determine which section in CLAUDE.md:
-- React/TypeScript
-- Supabase Edge Functions
-- Database/SQL
-- API Integration
-- [Create new section if needed]
+### Step 3: Choose a Rule Name
+1. Pick a kebab-case name describing the anti-pattern (e.g., `event-handler-refs`)
+2. Check if `.claude/rules/{name}.md` already exists — if so, **update** it instead of creating a duplicate
+3. Skip if the pattern is generic platform knowledge (not project-specific)
 
-### Step 4: Format Anti-Pattern
+### Step 4: Write Rule File
 
-Use this template:
-```
-**[Brief description]:**
+Create `.claude/rules/{name}.md` using this template:
+
+```markdown
+# [Title]
+
+## Rule
+[One-sentence imperative — what to always/never do]
+
+## Wrong
 ```[language]
-// ❌ WRONG - [why it's wrong]
-[incorrect code]
-
-// ✅ CORRECT - [why it works]
-[correct code]
-```
+// [why it's wrong]
+[incorrect code from the actual fix]
 ```
 
-### Step 5: Update CLAUDE.md
+## Right
+```[language]
+// [why it works]
+[correct code from the actual fix]
+```
+
+## Context
+[2-4 sentences: why this matters, what breaks, cascade effects]
+
+## Affected Files
+- [file1]
+- [file2]
+```
+
+### Step 5: Add One-Liner to CLAUDE.md Table
 
 1. Read current `/CLAUDE.md`
-2. Find the appropriate "Anti-Patterns" subsection
-3. Append the new entry under the correct category
-4. If category doesn't exist, create it
+2. Find the `## Key Rules` table
+3. Add ONE new row: `| Rule name | One-liner summary | \`{name}.md\` |`
+4. **NEVER** add code blocks, full anti-pattern sections, or more than one line to CLAUDE.md
 
 ### Step 6: Log Session Notes (Optional)
 
@@ -65,29 +91,48 @@ If `/.claude/notes/` directory exists:
 
 **Conversation context:** Fixed `onClick={() => handleFn}` bug
 
-**Action:** Add to CLAUDE.md under "React/TypeScript" section:
-
+**Action 1:** Create `.claude/rules/event-handler-refs.md`:
 ```markdown
-**Event Handlers:**
-```tsx
-// ❌ WRONG - Returns function reference, never calls it
-onClick={() => handleRecalculateRankings}
+# Event Handler Refs
 
-// ✅ CORRECT - Direct reference (React calls it on click)
+## Rule
+Pass event handlers as direct references, not wrapped in arrow functions that return them.
+
+## Wrong
+```tsx
+// Returns function reference, never calls it
+onClick={() => handleRecalculateRankings}
+```
+
+## Right
+```tsx
+// Direct reference (React calls it on click)
 onClick={handleRecalculateRankings}
 ```
+
+## Context
+Wrapping a handler in an arrow function without calling it (`() => fn` vs `() => fn()`) returns the function object instead of invoking it. The click does nothing.
+
+## Affected Files
+- Components with onClick handlers
+```
+
+**Action 2:** Add row to CLAUDE.md table:
+```
+| Handler refs | Pass handlers as direct refs, not `() => handler` | `event-handler-refs.md` |
 ```
 
 ## Quality Checklist
 Before completing, verify:
+- [ ] Rule file created/updated in `.claude/rules/`
 - [ ] Anti-pattern is specific (not generic advice)
 - [ ] Code examples are from the actual fix (not hypothetical)
-- [ ] Category matches the technology/domain
-- [ ] CLAUDE.md was successfully updated
-- [ ] Entry follows existing format in CLAUDE.md
+- [ ] CLAUDE.md only has a new table row (no code blocks added)
+- [ ] No duplicate — checked existing rules first
 
 ## Important
-- Keep entries concise - focus on the pattern, not the story
+- **NEVER** append code blocks to CLAUDE.md — all detail goes in `.claude/rules/`
+- Skip generic platform knowledge (e.g., "Supabase SQL Editor returns one result") — only record project-specific patterns
+- Keep entries concise — focus on the pattern, not the story
 - Use real code from the conversation, not sanitized examples
-- If the same pattern already exists in CLAUDE.md, don't duplicate
-- Link to session notes for detailed context if needed
+- If the same pattern already exists in `.claude/rules/`, update it instead of creating a new file
