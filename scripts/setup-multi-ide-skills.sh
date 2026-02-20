@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 #
 # Multi-IDE Skill Setup Script
-# Creates symlinks for Cursor and Claude Code to use .agent/skills/
+# Creates symlinks for Cursor, Claude Code, and Qwen to use .agent/skills/
 #
 # Supports:
 # - Google Antigravity (native .agent/skills/)
 # - Claude Code (via .claude/skills/ symlink)
 # - Cursor (via .cursor/skills/ symlink)
+# - Qwen (via .qwen/skills/ symlink)
 
 set -e
 
@@ -88,6 +89,7 @@ echo
 
 create_symlink ".agent/skills" "$REPO_ROOT/.cursor/skills" "Cursor"
 create_symlink ".agent/skills" "$REPO_ROOT/.claude/skills" "Claude Code"
+create_symlink ".agent/skills" "$REPO_ROOT/.qwen/skills" "Qwen"
 
 echo
 echo "Summary"
@@ -97,6 +99,7 @@ echo "Directory structure:"
 echo "  .agent/skills/    - Primary (Google Antigravity native)"
 echo "  .cursor/skills/   - Symlink → .agent/skills/ (Cursor)"
 echo "  .claude/skills/   - Symlink → .agent/skills/ (Claude Code)"
+echo "  .qwen/skills/     - Symlink → .agent/skills/ (Qwen)"
 echo
 echo -e "${GREEN}✓ Setup complete!${NC}"
 echo
@@ -104,4 +107,5 @@ echo "Next steps:"
 echo "  1. Test in Google Antigravity: Skills should work natively"
 echo "  2. Test in Cursor: Skills should be discovered via .cursor/skills/"
 echo "  3. Test in Claude Code: Skills should be discovered via .claude/skills/"
+echo "  4. Test in Qwen: Skills should be discovered via .qwen/skills/"
 echo
