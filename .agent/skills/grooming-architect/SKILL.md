@@ -50,4 +50,4 @@ Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (ho
 
 - **Verification Step (Definition of Done):**
   - [ ] Run `npm run test:[component]`
-  - [ ] Inspect the 'Network' tab to ensure a 201 Created is returned for the background job.# TEST COMMENT - Auto-sync verification
+  - [ ] Inspect the 'Network' tab to ensure a 201 Created is returned for the background job.
