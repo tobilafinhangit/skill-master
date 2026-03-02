@@ -188,6 +188,13 @@ grep -rn "deletedFileName" --include="*.ts" --include="*.tsx" .
 
 ## Recommendation
 [Specific action items for the PR author]
+
+## Follow-up: Impact Analysis
+If any modified files are **shared hooks, utilities, or services with runtime side effects**
+(e.g., AudioContext, WebSocket, streams, useEffect cleanup, global state), recommend running
+`/impact-analysis` to map resource lifecycle, performance, and leak paths.
+
+Skip impact analysis for: pure UI changes, new page components, CSS-only PRs, docs.
 ```
 
 ---
@@ -222,8 +229,22 @@ grep -rn "deletedFileName" --include="*.ts" --include="*.tsx" .
 | After PR Verification | Use This Skill |
 |-----------------------|----------------|
 | Found breaking changes | Use `impact-analysis` for deeper consumer mapping |
+| Modified shared hooks/utils with runtime side effects | Use `impact-analysis` for resource lifecycle + leak path analysis |
 | Need detailed code review | Use `requesting-code-review` for quality |
 | Need to fix issues | Ask PR author to update, then re-verify |
+
+### When to Recommend Impact Analysis
+
+PR verification answers **"does this break the API contract?"** — but some PRs are additive yet still risky at runtime. After generating your verdict, check if any modified file matches these patterns:
+
+- **Hooks with browser APIs**: `AudioContext`, `MediaRecorder`, `WebSocket`, `IntersectionObserver`, `getUserMedia`
+- **Hooks with cleanup concerns**: `useEffect` return functions, `requestAnimationFrame` loops, event listeners
+- **Shared state managers**: Context providers, global stores, caches
+- **Service layers**: API clients, auth handlers, retry logic
+
+If yes, add to the verdict: *"Recommend `/impact-analysis` — modified code has runtime side effects that need lifecycle review."*
+
+If no (pure UI, CSS, new isolated components, docs): skip it.
 
 ---
 
