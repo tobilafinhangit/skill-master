@@ -44,6 +44,21 @@ Estimated Tier reflects anticipated scope. Actual payout tier is determined post
 
 For epics with 4+ tickets, add an epic-level summary to the README: `**Epic estimated effort:** ~[tier] across [N] tickets`.
 
+### 6. Consolidation Pass (Anti-Sprawl)
+
+After drafting all tickets, run a consolidation check before presenting them:
+
+| Signal | Action |
+|---|---|
+| Ticket B is **unusable** without Ticket A (e.g., a utility + its only consumer) | **Merge** into one ticket |
+| Two tickets touch the **same files** with the **same pattern** (e.g., "add X to 7 pages") | **Merge** — one PR, one review |
+| Ticket is a single function call or < 10 lines of code | **Merge** into the nearest related ticket |
+| Tickets are **independently deployable** and owned by **different people/skills** (e.g., code vs PostHog UI config) | **Keep separate** |
+
+**Rule of thumb:** A ticket should be a deployable unit of value. If deploying Ticket A alone produces zero user-visible change and just adds dead code, it's not a ticket — it's a paragraph inside another ticket.
+
+After consolidation, re-estimate the merged ticket's tier using the combined verification steps.
+
 ---
 
 ## 🎫 Ticket Template for Fizzy/Cursor
