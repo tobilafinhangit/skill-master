@@ -22,12 +22,34 @@ Identify the exact file and line number (if possible) where the agent should beg
 ### 4. Verification Protocol (Definition of Done)
 Provide a CLI command or a manual step the agent can perform to verify its work.
 
+### 5. Tier Estimation (Effort Sizing)
+
+Before writing the ticket, estimate its tier using verification step count as the primary signal:
+
+| Verification Steps | Tier | Typical Scope |
+|---|---|---|
+| 1–3 | S | Bug fix, config tweak, copy change |
+| 4–6 | M | Feature slice, focused refactor |
+| 7–10 | L | Full feature, multi-file refactor |
+| 11+ | XL | Major feature, migration, restructure |
+
+**Override:** Bump +1 tier (max XL) if EITHER condition is true:
+- The ticket includes a **complex migration** (multiple tables, RPCs, or RLS policies)
+- Any context anchor matches a **critical-path file**
+<!-- SYNC WITH: .agent/skills/engineering-pulse/SKILL.md lines 98-108 (critical-path file patterns) -->
+
+Critical-path file patterns: `fn_aggregate_candidate_scores/`, `fn_score_candidate_answers/`, `fn_receive_audition_submission/`, `_shared/scaffold-utils.ts`, `_shared/transcription-utils.ts`, `fn_verify_silent_transcription/`, `fn_reconcile_stuck_candidates/`, migrations with `CREATE OR REPLACE FUNCTION` or `CREATE POLICY`, any `_shared/` file imported by 3+ edge functions.
+
+Estimated Tier reflects anticipated scope. Actual payout tier is determined post-merge by engineering-pulse based on PR metrics. Do NOT include pricing or KES amounts.
+
+For epics with 4+ tickets, add an epic-level summary to the README: `**Epic estimated effort:** ~[tier] across [N] tickets`.
+
 ---
 
 ## 🎫 Ticket Template for Fizzy/Cursor
 
 🎫 Ticket #[N]: [Emoji] [Title]
-Priority: [🔴/🟠/🟡/🟢] | Type: [Feature/Bug/Refactor]
+**Priority:** [🔴/🟠/🟡/🟢] | **Type:** [Feature/Bug/Refactor] | **Estimated Tier:** [S/M/L/XL]
 
 📜 **Strategic Narrative:**
 Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (how it works).
