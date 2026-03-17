@@ -1,6 +1,6 @@
 ---
 name: fizzy
-description: Interact with Fizzy (37signals) project management boards via REST API. Use when the user wants to create, read, update, or close Fizzy cards, add comments, check board status, or file bugs/features.
+description: Interact with Fizzy (37signals) project management boards via REST API. Use when the user wants to create, read, update, or close Fizzy cards, add comments, check board status, create new boards, or file bugs/features.
 ---
 
 # Fizzy Project Management Integration
@@ -74,6 +74,76 @@ Show details for a specific card.
 ### `/fizzy board [name]`
 Show a summary of a board's columns and card counts.
 
+### `/fizzy create-board [name]`
+Create a new board with the standard engineering column structure (matches Vetted/Congrats layout).
+
+**Steps:**
+1. Source the token: `source .env.local`
+2. Create the board:
+```bash
+LOCATION=$(curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"board": {"name": "BOARD_NAME"}}' | grep -i '^location:' | tr -d '\r')
+BOARD_ID=$(echo "$LOCATION" | sed 's|.*/boards/||' | sed 's|\.json||')
+```
+3. Create each column in order (columns are appended after the 3 default columns: Not Now, Maybe?, Done):
+```bash
+# Run these sequentially — column order = creation order
+for COL in \
+  '{"column":{"name":"Additional Grooming","color":"var(--color-card-default)"}}' \
+  '{"column":{"name":"🟡 Priority","color":"var(--color-card-4)"}}' \
+  '{"column":{"name":"🟠 Priority","color":"var(--color-card-3)"}}' \
+  '{"column":{"name":"🔴 Priority","color":"var(--color-card-8)"}}' \
+  '{"column":{"name":"In Progress","color":"var(--color-card-2)"}}' \
+  '{"column":{"name":"PR Open","color":"var(--color-card-6)"}}' \
+  '{"column":{"name":"QA Failed","color":"var(--color-card-2)"}}' \
+  '{"column":{"name":"QA to be confirmed","color":"var(--color-card-5)"}}'; do
+  curl -s -X POST "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns" \
+    -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -d "$COL"
+done
+```
+4. Confirm columns were created:
+```bash
+curl -s "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+  -H "Accept: application/json"
+```
+5. Display the board URL (`https://app.fizzy.do/6102589/boards/${BOARD_ID}`) and column summary to the user.
+
+## Engineering Board Template
+
+The standard column layout used by Vetted and Congrats engineering boards:
+
+| # | Column Name | Color | CSS Variable |
+|---|-------------|-------|-------------|
+| 1 | Additional Grooming | Blue | `var(--color-card-default)` |
+| 2 | 🟡 Priority | Lime | `var(--color-card-4)` |
+| 3 | 🟠 Priority | Yellow | `var(--color-card-3)` |
+| 4 | 🔴 Priority | Pink | `var(--color-card-8)` |
+| 5 | In Progress | Tan | `var(--color-card-2)` |
+| 6 | PR Open | Violet | `var(--color-card-6)` |
+| 7 | QA Failed | Tan | `var(--color-card-2)` |
+| 8 | QA to be confirmed | Aqua | `var(--color-card-5)` |
+
+## Column Colors Reference
+
+| Color Name | CSS Variable |
+|------------|-------------|
+| Blue (default) | `var(--color-card-default)` |
+| Gray | `var(--color-card-1)` |
+| Tan | `var(--color-card-2)` |
+| Yellow | `var(--color-card-3)` |
+| Lime | `var(--color-card-4)` |
+| Aqua | `var(--color-card-5)` |
+| Violet | `var(--color-card-6)` |
+| Purple | `var(--color-card-7)` |
+| Pink | `var(--color-card-8)` |
+
 ## API Endpoints Reference
 
 ### Identity
@@ -86,6 +156,34 @@ curl -s "https://fizzy.do/my/identity" \
 ```bash
 curl -s "https://app.fizzy.do/6102589/boards" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
+```
+
+### Create Board
+Returns `201 Created` with board URL in `Location` header (empty body). Extract board ID from Location.
+```bash
+curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"board": {"name": "My Board"}}'
+# Location: /6102589/boards/03f5v9zkft4hj9qq0lsn9ohcm.json
+```
+
+### List Columns
+```bash
+curl -s "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+  -H "Accept: application/json"
+```
+
+### Create Column
+Returns `201 Created` with column URL in `Location` header. Columns are appended in creation order.
+```bash
+curl -s -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"column": {"name": "In Progress", "color": "var(--color-card-2)"}}'
 ```
 
 ### List Cards (with filters)
@@ -140,11 +238,12 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments" \
 ```
 
 ### Assign User
+Note: POST toggles assignment (assign if unassigned, unassign if assigned). Response is 204 No Content.
 ```bash
 curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/assignments" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "USER_ID"}'
+  -d '{"assignee_id": "USER_ID"}'
 ```
 
 ### Add Tags

@@ -22,6 +22,11 @@ Identify the exact file and line number (if possible) where the agent should beg
 ### 4. Verification Protocol (Definition of Done)
 Provide a CLI command or a manual step the agent can perform to verify its work.
 
+**Banned verification commands:**
+- ⛔ `npx supabase db reset` — destroys all data in the local database. Never suggest this.
+- ⛔ `npx supabase db push` — applies migrations destructively. Never suggest this.
+- ✅ For migration verification, use: "Deploy migration via Supabase Dashboard SQL editor — no errors"
+
 ### 5. Tier Estimation (Effort Sizing)
 
 Before writing the ticket, estimate its tier using verification step count as the primary signal:
