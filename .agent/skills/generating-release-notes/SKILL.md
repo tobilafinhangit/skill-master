@@ -4,14 +4,14 @@ description: >
   Use when a batch of engineering work is complete. Generates team-readable
   release notes OR polished community-facing newsletter content from git
   history. Supports internal (default), newsletter, or both output modes.
-version: 2.0.0
+version: 2.1.0
 license: MIT
 metadata:
   author: VettedAI
   category: communication
   tags: [release-notes, changelog, newsletter, community, team-communication, qa, product]
   created: 2026-02-18
-  updated: 2026-03-15
+  updated: 2026-03-27
 argument-hint: "[date-range or commit-range] [newsletter|both]"
 ---
 
@@ -424,3 +424,66 @@ The newsletter voice is **confident builder** — a team that ships fast, cares 
 - **Generate internal notes first, then newsletter.** The internal notes are your source of truth. The newsletter cherry-picks from them.
 - **Screenshot placeholders save review cycles.** Describing exactly what to capture ("the profile page with the new booking link field filled in") means the person adding screenshots doesn't need to guess.
 - **One newsletter per week max.** Even if you ship daily, batch into weekly updates. Community attention is finite.
+
+### Step 6: Post to Fizzy
+
+After writing release notes (any mode), create a summary card on the project's **Fizzy board**.
+
+#### Fizzy Board Config (per-project)
+
+Each project must define these values. Look in these locations (in order): `.claude/rules/fizzy-api-patterns.md`, memory files, `qa-handoff` skill, or the fizzy skill's `SKILL.md` for the board ID. The token is always in the project's `.env.local` as `FIZZY_API_TOKEN`.
+
+| Field | Where to find |
+|-------|---------------|
+| Account ID | `6102589` (shared across all VettedAI projects) |
+| Board ID | Project-specific — check CLAUDE.md, memory, or fizzy skill |
+| Token | `.env.local` as `FIZZY_API_TOKEN` (path varies per project) |
+| Endpoint | `POST https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards.json` |
+
+**Important:** Always use `.json` suffix on the endpoint and include `User-Agent: VettedAI/1.0` header — without these Fizzy returns 401/422.
+
+#### Card Format
+
+- **Title:** `Release Notes — [Date] ([N] commits)`
+- **Content:** HTML summary (use `content` field, not `description`) with these sections:
+  - `<h3>New Features ([count])</h3>` — `<ul>` with `<strong>name</strong> — one-line description` per feature
+  - `<h3>Major Fixes ([count])</h3>` — `<ul>` with one-line per fix
+  - `<h3>Improvements ([count])</h3>` — same format
+  - `<h3>Security</h3>` — if applicable
+  - `<h3>Internal</h3>` — brief bullets
+  - `<h3>Deployment Notes</h3>` — env vars, migrations, cron jobs, new endpoints
+  - Final `<p><em>Full QA checklist in docs/release-notes/[date].md</em></p>`
+
+#### Posting
+
+Use Python for reliable JSON encoding (HTML in shell strings is fragile):
+
+```python
+python3 << 'PYEOF'
+import json, subprocess
+
+body_html = """<h3>New Features</h3><ul><li>...</li></ul>..."""
+
+payload = json.dumps({"card": {
+    "title": "Release Notes — YYYY-MM-DD (N commits)",
+    "content": body_html
+}})
+
+result = subprocess.run([
+    "curl", "-s", "-i", "-X", "POST",
+    "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards.json",
+    "-H", "Authorization: Bearer {TOKEN}",
+    "-H", "User-Agent: VettedAI/1.0",
+    "-H", "Content-Type: application/json",
+    "-d", payload
+], capture_output=True, text=True)
+print(result.stdout[:500])
+PYEOF
+```
+
+Extract the card number from the `Location` header (e.g., `/6102589/cards/500.json` → card #500). Report the card number to the user when done.
+
+#### If board details are unknown
+
+If you can't find the Fizzy board ID for the current project, ask the user:
+> "Which Fizzy board should I post release notes to? I need the board ID (e.g., `03f58rc5c48jorujpxqp5da5b`)."
