@@ -445,7 +445,7 @@ Each project must define these values. Look in these locations (in order): `.cla
 #### Card Format
 
 - **Title:** `Release Notes — [Date] ([N] commits)`
-- **Content:** HTML summary (use `content` field, not `description`) with these sections:
+- **Body:** HTML summary (use `description` field — Fizzy ignores `content`) with these sections:
   - `<h3>New Features ([count])</h3>` — `<ul>` with `<strong>name</strong> — one-line description` per feature
   - `<h3>Major Fixes ([count])</h3>` — `<ul>` with one-line per fix
   - `<h3>Improvements ([count])</h3>` — same format
@@ -466,7 +466,7 @@ body_html = """<h3>New Features</h3><ul><li>...</li></ul>..."""
 
 payload = json.dumps({"card": {
     "title": "Release Notes — YYYY-MM-DD (N commits)",
-    "content": body_html
+    "description": body_html  # NOTE: Fizzy uses 'description', NOT 'content'
 }})
 
 result = subprocess.run([
