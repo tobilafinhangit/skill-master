@@ -99,7 +99,8 @@ for COL in \
   '{"column":{"name":"In Progress","color":"var(--color-card-2)"}}' \
   '{"column":{"name":"PR Open","color":"var(--color-card-6)"}}' \
   '{"column":{"name":"QA Failed","color":"var(--color-card-2)"}}' \
-  '{"column":{"name":"QA to be confirmed","color":"var(--color-card-5)"}}'; do
+  '{"column":{"name":"QA to be confirmed","color":"var(--color-card-5)"}}' \
+  '{"column":{"name":"Merge to Prod","color":"var(--color-card-7)"}}'; do
   curl -s -X POST "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN" \
     -H "Content-Type: application/json" \
@@ -129,6 +130,7 @@ The standard column layout used by Vetted and Congrats engineering boards:
 | 6 | PR Open | Violet | `var(--color-card-6)` |
 | 7 | QA Failed | Tan | `var(--color-card-2)` |
 | 8 | QA to be confirmed | Aqua | `var(--color-card-5)` |
+| 9 | Merge to Prod | Purple | `var(--color-card-7)` |
 
 ## Column Colors Reference
 
