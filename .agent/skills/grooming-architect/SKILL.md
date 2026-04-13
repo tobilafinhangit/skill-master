@@ -29,21 +29,20 @@ Provide a CLI command or a manual step the agent can perform to verify its work.
 
 ### 5. Tier Estimation (Effort Sizing)
 
-Before writing the ticket, estimate its tier using verification step count as the primary signal:
+Before writing the ticket, estimate its tier using verification step count as the primary signal.
+
+**Count only behavioral verification steps** — ones that test a real user-observable outcome or data integrity invariant. Sanity checks ("app compiles", "page loads", "no console errors") do not count.
+
+**Default to the lower tier when in doubt.** This is an AI-assisted workflow: agents handle most implementation, engineers supervise and validate. The human contribution is judgment and review — not raw coding hours. Tier should reflect that compression. Underscoping is always preferred over overscoping at this stage.
 
 | Verification Steps | Tier | Typical Scope |
 |---|---|---|
-| 1–3 | S | Bug fix, config tweak, copy change |
-| 4–6 | M | Feature slice, focused refactor |
-| 7–10 | L | Full feature, multi-file refactor |
-| 11+ | XL | Major feature, migration, restructure |
+| 1–7 | S | Bug fix, config tweak, copy change, single-file feature, simple hook or endpoint |
+| 8–15 | M | Multi-file feature, refactor with meaningful UI + data changes |
+| 16–23 | L | Full end-to-end feature: frontend + backend + migration + QA surface |
+| 24+ | XL | Cross-system restructure, new pipeline stage, fundamental schema change |
 
-**Override:** Bump +1 tier (max XL) if EITHER condition is true:
-- The ticket includes a **complex migration** (multiple tables, RPCs, or RLS policies)
-- Any context anchor matches a **critical-path file**
-<!-- SYNC WITH: .agent/skills/engineering-pulse/SKILL.md lines 98-108 (critical-path file patterns) -->
-
-Critical-path file patterns: `fn_aggregate_candidate_scores/`, `fn_score_candidate_answers/`, `fn_receive_audition_submission/`, `_shared/scaffold-utils.ts`, `_shared/transcription-utils.ts`, `fn_verify_silent_transcription/`, `fn_reconcile_stuck_candidates/`, migrations with `CREATE OR REPLACE FUNCTION` or `CREATE POLICY`, any `_shared/` file imported by 3+ edge functions.
+There are no tier overrides. Touching a complex file does not make a ticket larger — the volume of intentional, high-judgment work does. Tier is determined solely by step count.
 
 Estimated Tier reflects anticipated scope. Actual payout tier is determined post-merge by engineering-pulse based on PR metrics. Do NOT include pricing or KES amounts.
 
