@@ -32,7 +32,7 @@ The skill auto-detects everything it needs. Run it in any repo — it just works
 
 | What it detects | How |
 |---|---|
-| **Integration branch** (e.g. `lovable-staging`, `verify-deployments`, `main`) | 1) Read `.claude/rules/working-branch.md` if it exists; 2) else use first of `lovable-staging` / `verify-deployments` / `main` that exists on `origin` |
+| **Integration branch** (e.g. `lovable-staging`, `verify-deployments`, `main`) | 1) Read `.claude/rules/working-branch.md` or `.claude/rules/integration-branch.md` if either exists; 2) else use first of `lovable-staging` / `verify-deployments` / `main` that exists on `origin` |
 | **qa-mirror branch** | Check `origin/qa-mirror`. If missing, skip the qa-mirror sync step entirely |
 | **Supabase migrations handling** | Check if `supabase/migrations/` exists |
 | **Fizzy board + QA column** | Derived from `card.board.id` returned in Step 1 (see Board Reference at the bottom) |
