@@ -27,6 +27,18 @@ Provide a CLI command or a manual step the agent can perform to verify its work.
 - ⛔ `npx supabase db push` — applies migrations destructively. Never suggest this.
 - ✅ For migration verification, use: "Deploy migration via Supabase Dashboard SQL editor — no errors"
 
+**Migration registry update (required for every new migration):**
+Dashboard-applied migrations don't update `supabase_migrations.schema_migrations` — only the CLI does. Every new migration ticket must end the SQL file with:
+
+```sql
+-- Record in migrations registry (Dashboard-applied migrations must do this manually)
+INSERT INTO supabase_migrations.schema_migrations (version)
+VALUES ('<timestamp-matching-filename>')
+ON CONFLICT (version) DO NOTHING;
+```
+
+Without this, any future `supabase db push` tries to re-run already-applied SQL. Tickets that create a new migration file must include this line in the Logic Change / Verification sections.
+
 ### 5. Tier Estimation (Effort Sizing)
 
 Before writing the ticket, estimate its tier using verification step count as the primary signal.
