@@ -1,3 +1,10 @@
+---
+name: qa-handoff
+description: Hands off completed work to QA by posting a testing guide on the Fizzy card, moving it to the QA column, assigning Elvis, and syncing qa-mirror. Auto-detects per-repo conventions (integration branch, qa-mirror presence, Supabase migrations). Use after pushing fixes when work is ready for QA testing.
+version: 2.0.0
+license: MIT
+---
+
 # QA Handoff
 
 After pushing code, hand it off to QA in one step — post a testing guide, move the card, assign the tester, sync qa-mirror.
