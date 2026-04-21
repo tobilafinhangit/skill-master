@@ -207,21 +207,34 @@ curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}" \
 
 ### Create Card
 **Important:** Payload must be wrapped in a `card` key (Rails convention). Always include `Accept: application/json`.
+
+Place the card in a specific column by passing `column_id` inside the `card` payload — do NOT use `/boards/{BOARD_ID}/columns/{COL_ID}/cards` (that endpoint returns 404 for POST).
 ```bash
 curl -s -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  -d '{"card": {"title": "Card title", "description": "<p>Description here</p>"}}'
+  -d '{"card": {"title": "Card title", "description": "<p>Description here</p>", "column_id": "COL_ID"}}'
 ```
 
 ### Update Card
+For title/description/general field updates. **Does NOT accept `column_id`** — use the triage endpoint below to move cards between columns.
 ```bash
 curl -s -X PUT "https://app.fizzy.do/6102589/cards/{NUMBER}" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -d '{"card": {"title": "Updated title"}}'
+```
+
+### Move Card to Column
+Use the `triage.json` action endpoint. Returns `204 No Content` on success. `PUT /cards/{N}` with `column_id` returns 400 — don't try it.
+```bash
+curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/triage.json" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"column_id": "COL_ID"}'
 ```
 
 ### Close Card
