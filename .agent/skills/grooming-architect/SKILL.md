@@ -39,6 +39,21 @@ ON CONFLICT (version) DO NOTHING;
 
 Without this, any future `supabase db push` tries to re-run already-applied SQL. Tickets that create a new migration file must include this line in the Logic Change / Verification sections.
 
+**RBAC scaffolding (required for every admin-facing ticket):**
+If the ticket adds an admin page, admin RPC, or admin-gated edge function, the same migration MUST include:
+
+1. **A new permission key** following the conventions in `.claude/rules/rbac-permission-naming.md`:
+   - Category = resource name (e.g. `accounts`, `system`, `support`, `jobs`)
+   - Verb from existing patterns (`view_all`, `view_details`, `edit_any`, `soft_delete`, `restore`, `hard_delete`) or a domain verb (`trigger_scoring`, `fix_stuck`, `approve_requests`)
+   - `is_dangerous = true` for irreversible/destructive actions
+2. **System role grants** in the same migration (super_admin = all; admin = all except dangerous; ops_manager = read + operational; support_staff = support surface; etc.)
+3. **UI wiring:** new admin pages wrap in `<PermissionGate permission="..." fallback={<AdminAccessDenied permission="..." />}>`. New admin sidebar entries declare a `permission` field.
+4. **Backend wiring:** new edge functions use `requirePermission(req, key)` from `_shared/admin-auth.ts` (never `is_admin()` directly). New RLS policies use `USING ((SELECT has_permission('<key>')))` — scalar subquery wrap for per-query (not per-row) evaluation.
+
+The ticket's Verification section must include: `Run \`deno run --allow-read --allow-write scripts/audit-rbac-drift.ts\` — should report 0 new drift.`
+
+Permissions added as a follow-up = drift. Always include them in the same migration as the feature.
+
 ### 5. Tier Estimation (Effort Sizing)
 
 Before writing the ticket, estimate its tier using verification step count as the primary signal.
@@ -96,6 +111,7 @@ Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (ho
 - **Technical Guardrails:**
   - ⛔ No synchronous AI calls; use `transcription_jobs`.
   - ⛔ Always filter RPC by `p_user_id`.
+  - ⛔ For admin tickets: never use `is_admin()` / `is_super_admin()` / `has_admin_or_ops_access()` directly — use `requirePermission(req, key)` (edge fns) or `has_permission()` (RPCs/RLS). New permission key + system role grants in same migration.
   - ✅ Use `clientUploadId` for idempotency.
 
 - **The Clue:**
