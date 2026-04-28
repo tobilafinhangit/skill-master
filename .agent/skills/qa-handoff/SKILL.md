@@ -1,19 +1,20 @@
 ---
 name: qa-handoff
-description: Hands off completed work to QA by posting a testing guide on the Fizzy card, moving it to the QA column, assigning Elvis, and syncing qa-mirror. Auto-detects per-repo conventions (integration branch, qa-mirror presence, Supabase migrations). Use after pushing fixes when work is ready for QA testing.
-version: 2.0.0
+description: Hands off completed work to QA by merging the PR into the integration branch, posting a testing guide on the Fizzy card, moving it to the QA column, assigning Elvis, and syncing qa-mirror. Auto-detects per-repo conventions (integration branch, qa-mirror presence, Supabase migrations). Use after a PR is approved (or pushed direct) and ready for QA testing.
+version: 2.1.0
 license: MIT
 ---
 
 # QA Handoff
 
-After pushing code, hand it off to QA in one step — post a testing guide, move the card, assign the tester, sync qa-mirror.
+After a PR is approved (or a direct push to integration is done), hand it off to QA in one step — merge the PR, post a testing guide, move the card, assign the tester, sync qa-mirror.
 
 **Announce at start:** "I'm using the qa-handoff skill to hand this off to QA."
 
 ## When to Use
 
-- After committing and pushing a fix or feature to the repo's integration branch
+- After a PR is approved and ready for QA (skill will merge it)
+- After committing and pushing directly to the repo's integration branch (skill will skip the merge step)
 - After a PR verification + fix cycle
 - When the user says "hand this to QA", "move to QA", "ready for testing"
 
@@ -192,30 +193,63 @@ if ! echo "$ASSIGNEES" | grep -q "03fcio1h8spstjpkc82vciugk"; then
 fi
 ```
 
-### Step 8: Sync qa-mirror (skip if `qaMirrorBranch` not detected)
+### Step 8: Merge PR into Integration Branch (skip if PR already merged or no PR)
 
-`qa-mirror` points at the live production DB and must reflect the integration branch. Sync after every handoff:
+If the handoff is for a PR (not a direct push to integration), the PR **must** be merged into the integration branch before qa-mirror sync — otherwise QA pulls stale code. The skill drives the merge so the workflow is one command.
 
 ```bash
-git fetch origin $INTEGRATION_BRANCH $QA_MIRROR_BRANCH
-git checkout $QA_MIRROR_BRANCH
-git merge origin/$INTEGRATION_BRANCH --no-ff \
-  -m "Merge remote-tracking branch 'origin/$INTEGRATION_BRANCH' into $QA_MIRROR_BRANCH"
-git push origin $QA_MIRROR_BRANCH
-git checkout $INTEGRATION_BRANCH
-git pull --ff-only   # fast-forward local integration branch (was stale before fetch)
+PR_STATE=$(gh pr view {NUMBER} --json state,mergeable,mergeStateStatus,reviewDecision -q '.state')
+if [ "$PR_STATE" = "MERGED" ]; then
+  echo "PR already merged — skipping merge step"
+elif [ "$PR_STATE" = "OPEN" ]; then
+  # Inspect mergeability before acting
+  gh pr checks {NUMBER}
+  gh pr view {NUMBER} --json mergeable,mergeStateStatus,reviewDecision
+
+  # If checks are red but the failure is pre-existing (e.g. lint debt
+  # tracked in a separate ticket), surface the red check to the user
+  # and ask before using --admin. NEVER --admin silently.
+  gh pr merge {NUMBER} --merge          # merge commit (matches repo convention)
+  # OR: gh pr merge {NUMBER} --merge --admin   # only with explicit user OK
+fi
+```
+
+**Guardrails:**
+- Always print the failing-check summary before suggesting `--admin`. The user authorizes admin overrides per PR, never standing.
+- Use `--merge` (merge commit) by default — this repo's history shows merge commits, not squash. If the repo uses squash, override with `--squash`.
+- If the PR base is not the integration branch (e.g. PR base is `main`), STOP and alert — qa-handoff is for integration→QA flows only.
+
+### Step 9: Sync qa-mirror (skip if `qaMirrorBranch` not detected)
+
+`qa-mirror` points at the live production DB and must reflect the integration branch. Sync after every handoff.
+
+**Always use a worktree** to avoid disturbing the user's current branch state (uncommitted changes, in-flight work):
+
+```bash
+WT=$(mktemp -d -t qa-mirror-sync-XXXX)
+git worktree add "$WT" $QA_MIRROR_BRANCH
+(
+  cd "$WT"
+  git pull origin $QA_MIRROR_BRANCH --ff-only
+  git fetch origin $INTEGRATION_BRANCH
+  git merge origin/$INTEGRATION_BRANCH --no-ff \
+    -m "Merge remote-tracking branch 'origin/$INTEGRATION_BRANCH' into $QA_MIRROR_BRANCH"
+  git push origin $QA_MIRROR_BRANCH
+)
+git worktree remove "$WT"
 ```
 
 If merge conflicts: resolve (prefer integration branch) before pushing.
 If `qa-mirror` is already up to date: skip and note it.
 
-**Why the final pull:** the merge above uses `origin/$INTEGRATION_BRANCH`, which updates qa-mirror but never advances local integration branch. Without `git pull --ff-only`, every handoff leaves you on a stale integration branch — the next task would branch off that stale base.
+**Why the worktree:** users are often mid-work on a feature branch with uncommitted changes when /qa-handoff runs. `git checkout qa-mirror` on the main worktree would either fail or risk losing in-flight state. A throwaway worktree is safe and self-cleaning.
 
-### Step 9: Confirm Handoff
+### Step 10: Confirm Handoff
 
 ```
 QA Handoff Complete:
-- ✅ QA comment posted on Fizzy #{NUMBER}
+- ✅ PR #{NUMBER} merged into {INTEGRATION_BRANCH} (or: already merged / direct push)
+- ✅ QA comment posted on Fizzy #{CARD}
 - ✅ Card moved to "{QA_COLUMN_NAME}" column
 - ✅ Elvis Muchiri assigned (or: already assigned — skipped)
 - ✅ qa-mirror synced with {INTEGRATION_BRANCH} (or: already up to date / no qa-mirror in this repo)
