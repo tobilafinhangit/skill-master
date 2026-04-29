@@ -206,11 +206,19 @@ Leave **Covered** cards in Merge to Prod — they stay there until the PR actual
 gh pr view $PR_NUMBER --json state,mergedAt --jq '.state'
 # Expect: "MERGED". If "OPEN", stop.
 
-# 2. Extract ticket numbers from the PR body
+# 2. Extract ticket numbers — ONLY from bullet lines under "### Tickets",
+#    NOT from anywhere in the body. Otherwise GitHub PR numbers like (#541),
+#    parenthetical refs like "Card #644", and related-ticket refs like
+#    "(from #318)" all get matched and wrongly closed.
 TICKETS=$(gh pr view $PR_NUMBER --json body -q .body \
-  | grep -oE '#[0-9]+' | tr -d '#' | sort -u)
+  | awk '/^### Tickets[[:space:]]*$/ {flag=1; next} /^### / {flag=0} flag' \
+  | grep -oE '^- #[0-9]+' | grep -oE '[0-9]+' | sort -u)
 
-# 3. Close each
+# 3. Print before closing so a wrong list is visible before mutation
+echo "About to close the following tickets:"
+for N in $TICKETS; do echo "  - #$N"; done
+
+# 4. Close each
 for N in $TICKETS; do
   curl -s -X POST "https://app.fizzy.do/6102589/cards/$N/closure.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN"
