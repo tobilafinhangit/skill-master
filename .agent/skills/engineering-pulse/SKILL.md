@@ -1,15 +1,15 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 2.1.0
+version: 3.0.0
 license: MIT
 metadata:
   author: VettedAI
   category: engineering-management
   tags: [productivity, performance-review, team-health, velocity, delegation, bounty]
   created: 2026-03-11
-  updated: 2026-03-13
-argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM-DD]"
+  updated: 2026-05-01
+argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--pre-invoice] [--draft|--payout]"
 ---
 
 # Engineering Pulse — Contributor Productivity & Bounty Analysis
@@ -29,18 +29,23 @@ Generates a cross-repo contributor analysis from merged PR data with bounty payo
 
 ## Repos to Analyze
 
-Always include all three VettedAI repos unless the user specifies otherwise:
+The repo list is **config-driven** — read it from `repos.yaml` next to this SKILL.md. Each entry has `name`, `path`, and `integration_branches`. Adding a new repo is a single YAML append; no skill code changes.
 
-```
-REPOS=(
-  "/Users/USER/code/repos/vettedai-audition-supabase-version"
-  "/Users/USER/code/repos/vetted-congrats-Flow-GENEROUS"
-  "/Users/USER/code/repos/backend-restructing"
-)
-REPO_LABELS=("audition" "congrats" "backend")
+```yaml
+# repos.yaml
+repos:
+  - name: audition
+    path: /Users/USER/code/repos/vettedai-audition-supabase-version
+    integration_branches: [main, lovable-staging]
+  - name: nts
+    path: /Users/USER/code/repos/nts-event-platform-supabase
+    integration_branches: [main, staging]
+  # ... append more here
 ```
 
-**Target branches:** Only count PRs merged into `main` or the primary integration branch (e.g., `lovable-staging`). PRs between feature branches are excluded.
+**Target branches:** Only count PRs merged into one of the per-repo `integration_branches`. PRs between feature branches are excluded. Each repo can have its own integration branch (e.g., `lovable-staging` for audition, `verify-deployments` for congrats, `staging` for nts).
+
+If a repo path doesn't exist on disk or `gh` returns auth errors for it, log a warning and continue with the remaining repos — never block the whole report on one missing repo.
 
 ## Step 1: Determine Time Window
 
@@ -283,6 +288,94 @@ Drafts use the same classification logic but are labeled clearly as non-binding.
 
 This step is process, not code — the payout report should include the `review_period_ends` and `payout_date` in the frontmatter and a note at the bottom: "Bounty estimates are preliminary until the review period closes on {review_period_ends}. Final payout on {payout_date}."
 
+## Step 8: Pre-Invoice Mode (`--pre-invoice`)
+
+When the user passes `--pre-invoice` (or asks for "pre-invoices" / "bounty statements"), generate one engineer-facing markdown statement per active engineer in addition to the team payout report. These statements are what the engineer uses to issue an invoice; they must be self-contained, accurate, and free of internal-only signals (no flags, no comparisons to other contributors, no management insights).
+
+### Inputs
+
+1. **`engineers.yaml`** (next to this SKILL.md) — registry of active engineers with display name, reference initials, and currency. Engineers absent from this file are still counted in the team payout report but no statement is generated for them.
+2. **`reports/payouts/balances.json`** (in the working repo) — append-only ledger of explicit advance agreements. Most months it's empty. Each entry has lifecycle: `pending` → `applied` (one or more periods) → `settled`. Each pending entry can include an `apply_when` condition (currently supports `gross >= NNNN`, `gross > NNNN`, etc.) that gates auto-application — useful when an advance shouldn't be drawn down until the engineer's monthly gross bounty crosses a threshold (so we don't compound assignment shortfalls). When the condition is met, the skill proposes applying the advance; when it isn't met, the engineer's statement renders a "carried forward" block explaining the rollover. The skill never auto-creates entries — manual edits welcome.
+3. **`pre-invoice-template.md`** (next to this SKILL.md) — markdown template with placeholders for the rendering step.
+
+### Output
+
+One statement per active engineer at `reports/payouts/<period>/<period>_<github_login>.md`. The period subfolder groups all statements for a given month or half-month together.
+
+- Monthly payout runs: period = `YYYY-MM` → `reports/payouts/2026-04/2026-04_DBusuru.md`
+- Half-month runs: period = `YYYY-MM-DD-to-DD` → `reports/payouts/2026-03-16-to-30/2026-03-16-to-30_DBusuru.md`
+
+Create the subfolder if it doesn't exist. Filename uses the github login (deterministic, unambiguous) — not the display name.
+
+### Rendering rules
+
+- **Work table:** one row per feature PR (exclude CI noise and revert-pairs). Columns: ticket label (extract from PR title — e.g., "[#414] …" or "ticket 5.3"), repo name, PR number, tier, amount. PRs flagged as `duplicate-suspect` or as setup-noise (e.g. titles like "Author ( the branch)") have their amounts struck through (`~~500~~`) and footnoted; they are NOT included in the gross.
+- **Tier summary:** one row per tier present, with PR count, rate, subtotal. Counts only the kept (non-struck) PRs.
+- **Gross bounty:** sum of subtotals.
+- **Advance block:** present only if `balances.json` has an advance entry for this engineer that is either (a) `pending` with an `apply_when` condition the current gross satisfies → render an "Applied This Month" block, OR (b) `pending` with the condition not yet satisfied → render a "Carried Forward" block, OR (c) `settled` with `applied_period == current period` → render a historical "Applied This Month" block. If no entry matches, omit the block entirely. Use the friendly month name in headings ("March Advance — Carried Forward", not "2026-03 Advance — Carried Forward").
+- **Volume note:** present only when the manager has supplied a per-engineer note for the period. Don't auto-generate volume notes from velocity data — the manager decides when context is owed.
+- **Footnotes:** if any rows are struck through, append a `## Notes for Review` section explaining each. Tone: factual, second-person, invite the engineer to flag if our judgment is wrong.
+- **Net total:** `gross - applied_advance`. This is the amount the engineer invoices.
+- **Reference code:** `GC-ENG-<period>-<reference_initials>`. For half-month periods append `A` or `B` (`GC-ENG-2026-03B-DB`).
+
+### Tone
+
+These statements are sent to the engineer. Write everything in **plain second-person prose** as if you're the manager talking to the contractor:
+
+- ✅ "In March we paid you KES 5,000 against work that came in at KES 2,500..."
+- ❌ "March overpayment from bounty rubric calibration. Originally agreed to draw down against April work..."
+
+Avoid third-person references to the engineer ("David's gross", "Daniella's PRs"), accounting jargon ("recover", "reconciliation entry"), and judgmental language ("penalize"). When the cause of a discrepancy is on the platform side (light assignment, rubric calibration), name it explicitly and take responsibility — engineers notice when statements quietly skip the why.
+
+The `rationale` field in `balances.json` is rendered verbatim into the engineer-facing block, so it must already be in this voice. Do not write internal-finance language there.
+
+### Confirmation gate before writing balances.json
+
+After rendering the statements but **before** writing the updated `balances.json`:
+
+1. Print a diff summary to the console: which advances would transition `pending` → `applied` or `applied` → `settled`, with engineer names and amounts.
+2. Wait for explicit user confirmation (`y` / `yes`).
+3. Only on confirmation, write the updated `balances.json`.
+
+This kills the double-count risk if the skill is re-run for the same period — running again without confirmation produces the same statement files but the ledger is unchanged. Idempotency is keyed on `(advance.id, applied_period)`.
+
+### Ops & Review Contribution Detection
+
+In addition to bounty (merged PRs), engineers earn for skill-assisted ops work that lives in Fizzy comments — pr-review runs, qa-handoff guides, ticket-review panel runs, and manual QA sessions. These are real contributions that don't show up in `gh pr list`.
+
+**Inputs:**
+1. **`ops-rates.yaml`** (next to this SKILL.md) — defines categories, rates (KES), keyword detectors, minimum comment length, and the list of Fizzy boards + card-number range to scan.
+2. **`fizzy_user_id`** field on each engineer in `engineers.yaml` — required for attribution. Discoverable from any card's `/comments.json` endpoint by inspecting `creator.id`.
+
+**Algorithm:**
+1. For each card number in `ops-rates.yaml > card_scan_range`, fetch `/comments.json` (parallelize via thread pool, ~25 workers, ~10 seconds for 800 cards). Also fetch the card metadata itself (`/cards/{n}.json`) so card creators can be matched for the prod-triage category.
+2. Filter to: authored by an active engineer (via `fizzy_user_id` map) within the analysis window AND on/after the engineer's `bounty_start_date` if set. (See "Per-engineer bounty start date" below.)
+3. Classify each surface independently:
+   - **Comment-based categories** (`ticket-review`, `pr-review`, `qa-handoff`, `manual-qa`): walk in priority order. A comment matches if it (a) meets `min_length`, (b) hits any of `detect_any` keywords, AND (c) hits all of `detect_all` clauses (each clause requires any of its keywords). Unmatched comments longer than `track_other_min_length` surface as "uncategorized" so the manager can refine the detectors.
+   - **Card-creation categories** (`prod-triage`): when a category specifies `surface: card_creation`, scan card metadata instead of comments. Match if the card was created by the engineer's `fizzy_user_id`, on a board in the category's `boards` list, with a title hitting any of `title_detect_any`. Each matching card counts once at `rate_kes` regardless of how the engineer later updates it.
+4. Sum per-engineer per-category: `count × rate_kes` = subtotal. Net ops = sum of all category subtotals.
+
+**Per-engineer bounty start date.** When an engineer's `bounty_start_date` is set in `engineers.yaml`, all PRs / comments / card creations attributed to them must satisfy `event_date >= bounty_start_date`. Pre-agreement work is not bounty-eligible — even if it shipped during the analysis window. Apply the filter at the source-merging step (PR `mergedAt`, comment `created_at`, card `created_at`), not as a downstream filter, so subtotals are accurate from the start. If the field is missing or null, no filter is applied.
+
+**Rate effective dates.** When `rate_effective_from` is set on a category, the rate applies only to events on or after that date. For events before the effective date, fall back to the previous rate (recorded in the category comment). The skill should never silently re-rate historical periods; if the manager runs `--pre-invoice` for an old period after a rate change, the older rate should still produce the original numbers.
+
+**Render in statement:**
+- New section "Ops & Review Contributions" (after "Bounty Summary") with one row per category present.
+- Net payable becomes `bounty_gross + ops_total - applied_advance`.
+- If the engineer has bounty AND ops, the statement also includes a "Total" block summing the two before the advance/invoice section so the engineer can read the math at a glance.
+
+**Tone in the section:** "These are skill-assisted reviews, QA testing guides, and manual QA sessions you posted to Fizzy this month — work that doesn't show up as merged PRs." Acknowledges the contribution without overselling it (the AI did most of the heavy lifting; we're paying for the human in the loop).
+
+**Calibration philosophy:** rates are deliberately low because most of these tasks are AI-assisted — the engineer's value is invoking the skill, sanity-checking, and adding context. Manual QA is the exception (real testing-the-app time) and gets a higher rate. If a category becomes high-volume for a single engineer (say 30+ runs/month consistently), that's a signal to formalize the role (flat retainer for QA, etc.) rather than scaling the per-task rate up.
+
+**False positives & manager review:** the detectors are heuristic and produce some misclassification. Daniella's April scan, for example, flagged 16 "uncategorized" long comments (file-summaries written for context that aren't a defined category). The team payout report surfaces these so the manager can decide whether to add a new category, manually credit, or ignore. The skill never silently inflates — what it shows is what was matched.
+
+### Founder, QA, and unregistered contributors
+
+- **Founder:** never gets a pre-invoice statement (sweat equity).
+- **QA (Elvis):** never gets a PR-based statement.
+- **Engineers with PRs but no `engineers.yaml` entry:** team payout report counts their bounty; no statement file is written. The skill prints a one-line warning suggesting the user add them to `engineers.yaml` if they should be invoiced.
+
 ## Bounty Rate Reference
 
 These rates are fixed in KES (Kenyan Shillings). They are intentionally conservative — the team is bootstrapped and operating in the East African market.
@@ -305,10 +398,22 @@ These rates are fixed in KES (Kenyan Shillings). They are intentionally conserva
 - Run all `gh pr list` commands in parallel (one per repo) for speed
 - Fetch `gh pr view` data (files, reviews) only for PRs above S-tier threshold to avoid API rate limits
 - Use Python for data processing — it handles JSON, dates, and table formatting well
-- The analysis script should be self-contained in a single Python block (no external deps beyond stdlib)
+- The analysis script is self-contained in a Python block. **Allowed deps: stdlib + `pyyaml`** (for parsing `repos.yaml`, `engineers.yaml`, `ops-rates.yaml`). Install with `pip3 install --quiet pyyaml` if missing.
+- **Fizzy auth:** the `--pre-invoice` mode hits the Fizzy API for ops detection. Source the token from `.env.local` before running: `set -a && source <repo>/.env.local && set +a` — exposes `FIZZY_API_TOKEN` for the Python script to read via `os.environ`. See [.claude/rules/env-local-credentials.md](../../../../.claude/rules/env-local-credentials.md).
+- **Fizzy API patterns:** use `urllib.request` (stdlib) with `Authorization: Bearer ${FIZZY_API_TOKEN}` and `User-Agent: VettedAI/1.0`. Always append `.json` to action endpoints. See [.claude/rules/fizzy-api-patterns.md](../../../../.claude/rules/fizzy-api-patterns.md). Parallelize card-fetches via `ThreadPoolExecutor(max_workers=25)` — ~10 seconds for 800-card scan.
+- **Card scan range** in `ops-rates.yaml > card_scan_range` should be tuned periodically as Fizzy card numbers grow. Underestimating misses recent ops; overestimating just costs a few extra seconds.
 - If lines/files counts look anomalous (e.g., >50K lines in a single PR), flag it as likely containing generated/vendor files
 - Always note the CI noise percentage in the final summary so managers see the true signal
 - **Deflation bias:** default to lower tier. The goal is accuracy, not punishment
 - **Flags are advisory only:** show them prominently so the manager can decide during the review period. Never silently downgrade — transparency builds trust
 - **Revert-pairs are the one automatic deduction** — merged-then-reverted PRs have zero net value, no judgment needed
 - When showing bounty estimates, show gross and the revert deduction so the delta is clear
+
+## Bounty + Ops Reference
+
+| System | Source of truth | What it counts |
+|---|---|---|
+| Bounty (PRs) | `gh pr list` across `repos.yaml` | Merged PRs into integration branches, tiered S/M/L/XL by lower of files/lines |
+| Ops contributions | Fizzy comments + card creations across `ops-rates.yaml > boards` | pr-review, qa-handoff, ticket-review, manual-qa (comments) + prod-triage (card creations) |
+| Advances | `reports/payouts/balances.json` | Explicit advance agreements, lifecycle pending → applied → settled |
+| Per-engineer eligibility | `engineers.yaml` `bounty_start_date` | Filter applied to PRs / comments / card creations: `event_date >= bounty_start_date` |

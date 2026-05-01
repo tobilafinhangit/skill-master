@@ -1,0 +1,116 @@
+# Ops & Review contribution rates — for work that doesn't show up as merged PRs but
+# happens in Fizzy comments (skill-output runs, manual QA, ticket reviews).
+#
+# Rationale: most of these tasks are AI-assisted. The skill (pr-review, qa-handoff,
+# ticket-review) does the heavy generation; the engineer's value is invoking it,
+# sanity-checking, posting, and adding context. Manual QA is the exception — it's
+# real testing-the-app time, less AI-assisted, so its rate is meaningfully higher.
+#
+# Skill-running rates should feel like a tip for invoking the tool (~$0.20–0.80),
+# not a wage. The volume of generated prose is NOT a calibration input — a 23K-char
+# ticket-review output is still ~5–10 minutes of human time to read and post. Don't
+# price by output size; price by human time + judgment.
+#
+# If a category becomes very high-volume for a single engineer (~30+/month, sustained),
+# treat that as a signal to formalize the role (flat monthly retainer for QA, etc.)
+# rather than scaling the per-task rate up.
+#
+# `min_length` filters out short conversational comments (acks, pings, "for the fix
+# it's this"). Tune up if false positives appear.
+
+# Boards to scan for ops comments (authored by team members in the window).
+# Add new boards here as the team takes on more surfaces.
+boards:
+  - id: 03faozjl3gdngcoyzpkr4vf87
+    name: vetted
+  - id: 03f58rc5c48jorujpxqp5da5b
+    name: congrats
+  - id: 03fque324yujb6i427s8o92r5
+    name: talent-social
+  - id: 03feaz5rc2t60wkn2rvjkhy6b
+    name: product
+  - id: 03fl735hqcd0h1pettl8o94oo
+    name: bugs
+  - id: 03fqeqfxt4s5h8spz9eyqf5vq
+    name: vetted-onboarding
+
+# Card-number scan range. Fizzy card numbers are global across the account and
+# monotonically increasing. Each monthly run should cover the full active range.
+# Adjust `high` periodically as the team accumulates more cards.
+card_scan_range:
+  low: 100
+  high: 1000
+
+categories:
+  pr-review:
+    rate_kes: 40
+    rate_effective_from: 2026-05-01  # was 30 KES Apr 2026; bumped after Daniella's Apr feedback re: technical-validation effort
+    label: PR Review (skill-assisted)
+    detect_any:
+      - 'pr review:'
+      - 'pr review —'
+      - 'pr review report'
+      - 'pr verification report'
+      - 'pr verification —'
+      - 'pr verification ━'
+      - '🔍 pr review'
+      - 'verdict from'
+    detect_all:
+      - any: ['ticket compliance', 'verdict', 'compliance check', 'exports / imports check', 'files changed']
+    min_length: 600
+
+  qa-handoff:
+    rate_kes: 25
+    label: QA Testing Guide (skill-assisted)
+    detect_any:
+      - 'qa testing guide'
+    min_length: 600
+
+  ticket-review:
+    rate_kes: 75
+    rate_effective_from: 2026-05-01  # was 50 KES Apr 2026; bumped to acknowledge longer reading + grooming-workflow context
+    label: Ticket Review (panel skill)
+    detect_any:
+      - 'ticket review —'
+      - 'ticket review report'
+      - 'final ticket review'
+    detect_all:
+      - any: ['senior full-stack engineer', 'senior engineer', 'panel']
+      - any: ['product manager', 'product designer', 'designer']
+    min_length: 2000
+
+  manual-qa:
+    rate_kes: 200
+    rate_effective_from: 2026-05-01  # was 150 KES Apr 2026; bumped to recognize real testing-the-app time + bug-finding value
+    label: Manual QA Session
+    detect_any:
+      - 'qa report —'
+      - 'qa report:'
+      - 'qa result:'
+      - 'tested on branch'
+      - 'steps passed'
+      - 'qa failed —'
+      - 'qa passed'
+    min_length: 400
+
+  # Production triage tickets — opened on the Bugs board after running
+  # alerts-vetted / alerts-congrats / troubleshooting skills. These don't
+  # show up as comments; detection looks at *card creations* on the Bugs board
+  # (and others listed below) by the engineer's fizzy_user_id.
+  prod-triage:
+    rate_kes: 75
+    label: Production Triage Report
+    surface: card_creation        # tells the scanner to look at cards.creator, not comments
+    boards: [03fl735hqcd0h1pettl8o94oo]  # bugs board only; expand if other surfaces start receiving these
+    title_detect_any:
+      - 'troubleshooting report'
+      - 'production system failures'
+      - 'production audition errors'
+      - 'webhook timeout'
+      - 'system health alerts'
+    # No body length filter — prod-triage cards are recognized by title pattern.
+
+# Comments that don't match any category but exceed `track_other_min_length` are
+# logged in the team payout report under "uncategorized ops" so the manager can
+# spot-check whether new categories should be added.
+track_other_min_length: 800

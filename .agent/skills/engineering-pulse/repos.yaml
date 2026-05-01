@@ -1,0 +1,30 @@
+# Repos analyzed by /engineering-pulse.
+#
+# Adding a new repo: append a new entry. Required fields are `name`, `path`, and
+# `integration_branches`. The skill counts only PRs merged into one of the
+# integration branches (per-repo). Everything else (cross-feature-branch merges,
+# WIP forks, etc.) is excluded.
+#
+# `name` is the short label used in tables and breakdowns. Keep it lowercase and
+# stable — renaming a repo here means historical reports will read inconsistently.
+
+repos:
+  - name: audition
+    path: /Users/USER/code/repos/vettedai-audition-supabase-version
+    integration_branches: [main, lovable-staging]
+
+  - name: congrats
+    path: /Users/USER/code/repos/vetted-congrats-Flow-GENEROUS
+    integration_branches: [main, verify-deployments]
+
+  - name: backend
+    path: /Users/USER/code/repos/backend-restructing
+    integration_branches: [main, backend-verify-deployment]
+
+  - name: nts
+    path: /Users/USER/code/repos/nts-event-platform-supabase
+    integration_branches: [main, staging]
+
+  - name: onboarding
+    path: /Users/USER/code/repos/vetted-engineering-onboarding
+    integration_branches: [main, staging]

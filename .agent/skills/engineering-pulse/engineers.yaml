@@ -1,0 +1,103 @@
+# Engineer registry for /engineering-pulse --pre-invoice mode.
+#
+# Each entry produces one per-engineer bounty statement when --pre-invoice runs.
+# Engineers absent from this file are still counted in the team-wide payout report
+# (their PRs and bounty are calculated) but no statement is generated for them —
+# that's how we keep the file authoritative without losing visibility on contributors
+# we haven't onboarded into the invoice flow yet.
+#
+# `reference_initials` must be unique — it goes into the invoice reference code
+# (e.g. GC-ENG-2026-04-DB). If two engineers share initials, append a digit (DB, DB2).
+#
+# `fizzy_user_id` maps to the engineer's user ID inside Fizzy (37signals). Required
+# for ops-contribution detection (pr-review / qa-handoff / ticket-review / manual QA
+# comments authored by them). Discoverable by hitting any card's /comments.json and
+# looking at `creator.id`. Leave blank if unknown — ops detection just won't include
+# that engineer until it's filled in.
+#
+# `display_name` and `currency` populate the statement template. Payment details
+# (M-Pesa number, bank account) are NOT stored here — those live with the engineer
+# and go on their invoice. This file is safe to commit.
+#
+# `active` controls bounty eligibility:
+#   - true  → counted in bounty + statement generated each period
+#   - false → PRs still counted in team-wide stats, but no bounty assigned and no
+#             statement generated. Use when the engineer is on the team but not
+#             yet onboarded onto the bounty system, or has left.
+#
+# `bounty_start_date` is the date the engineer's bounty agreement took effect.
+# The pulse skill filters PRs / comments / card creations to (>= start_date)
+# when computing that engineer's totals. If the field is missing or null, no
+# filter is applied (treat as "always eligible" — usual case for long-tenured
+# folks). YYYY-MM-DD format. Inclusive of the start date itself.
+
+founder: tobilafinhangit  # excluded from bounty calculations regardless of presence below
+
+engineers:
+  - github: DBusuru
+    display_name: David Busuru
+    reference_initials: DB
+    currency: KES
+    fizzy_user_id: 03fe9amq160g8mbw0azsjh7li
+    bounty_start_date: 2026-03-14
+    active: true
+
+  - github: Liban-hassan-noor
+    display_name: Liban Hassan
+    reference_initials: LH
+    currency: KES
+    fizzy_user_id:  # TODO: fill in
+    bounty_start_date: 2026-03-14
+    active: true
+
+  - github: jush34
+    display_name: Theophilus Juma
+    reference_initials: TJ
+    currency: KES
+    fizzy_user_id: 03f5cmyeoj2xeixy4tkav7kc1
+    active: true
+
+  - github: oussama22x
+    display_name: Oussama Elboukhari
+    reference_initials: OE
+    currency: KES
+    fizzy_user_id: 03f5clrwhb0jpi7h8yxhzfc2i
+    active: true
+
+  - github: adiela
+    display_name: Adiela Abishua
+    reference_initials: AA
+    currency: KES
+    fizzy_user_id: 03fhh9itsfhjh4lvzqrhk9kps
+    active: true
+
+  - github: daniella-mu
+    display_name: Daniella Mutai
+    reference_initials: DM
+    currency: KES
+    fizzy_user_id: 03fma4gpioiosyf3g9w409r8t
+    bounty_start_date: 2026-04-14
+    active: true
+
+  - github: Kariuki11
+    display_name: Kennedy Kariuki
+    reference_initials: KK
+    currency: KES
+    fizzy_user_id:  # TODO: fill in
+    active: true
+
+  # Not yet on bounty system — PRs counted in team-wide stats, no statement generated.
+  - github: JoyyCLangat
+    display_name: Joy Langat
+    reference_initials: JL
+    currency: KES
+    fizzy_user_id: 03frs0fbjk4fhn041ylmxnlza  # "Joy Chepkoech" in Fizzy
+    active: false  # not on bounty system yet
+
+  # No github login on record yet (no PRs in pulse window).
+  - github: wisdom-shaibu  # TODO: confirm github login
+    display_name: Wisdom Shaibu
+    reference_initials: WS
+    currency: KES
+    fizzy_user_id:  # TODO: fill in
+    active: false  # not on bounty system yet
