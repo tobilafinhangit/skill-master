@@ -90,6 +90,25 @@ After drafting all tickets, run a consolidation check before presenting them:
 
 After consolidation, re-estimate the merged ticket's tier using the combined verification steps.
 
+### 7. Pre-Execution Sanity Check (Plan Pressure-Test)
+
+Before presenting the ticket(s) to the user — and again at the start of any implementation session — list **3 ways the plan could be wrong** and the assumptions you're making. This is cheap insurance against the wrong-approach class of failure (where the agent confidently executes a plan that's structurally off).
+
+The check has four standing prompts; answer each one in writing on the ticket itself, even briefly:
+
+1. **What writers does this touch?** If the change is a CHECK constraint, column DEFAULT, text-domain remap, or column-level GRANT, enumerate every trigger / RPC / edge function / seed query / src write that targets the column. Anything in a different domain than the ticket scope is a load-bearing signal that the scope is wrong. See `.claude/rules/migration-impact-analysis-writers.md`.
+2. **What base branch?** State explicitly: feature/cleanup → `lovable-staging`; P0 hotfix → `main` with `-main` branch suffix. If the user's framing implies one but the work is the other, surface the mismatch. See `.claude/rules/branch-and-worktree-policy.md`.
+3. **What's the RBAC story?** New admin page / RPC / edge fn? → new permission key + system role grants in the *same* migration, plus `PermissionGate` wiring. New table touched by RLS? → separate `FOR SELECT` (permission-based) from `FOR ALL` (admin-write). See `.claude/rules/rbac-permission-naming.md` and `rbac-rls-for-all-vs-select.md`.
+4. **What feature-flag / plan-tier behavior?** If the change interacts with free-tier or paid-plan gating: backend hard-gates the wallet (cost-incurring ops only), frontend soft-gates with comms; gate-check failures fail open. See `.claude/rules/soft-gate-ui-hard-gate-wallet.md`.
+
+Then list **3 ways the plan could be wrong** as one-liners — they don't have to be deep, just honest. The act of writing them surfaces the wrong-approach class. Examples:
+
+- "We assume the trigger that fires on `recruiters` insert doesn't write to this column — we should grep before approving."
+- "We assume this is a feature so it bases on `lovable-staging` — but if the user said 'production is broken' it's actually a hotfix."
+- "We assume the new RPC needs admin gating — but if collaborators (editor role) should also call it, the gate is wrong."
+
+Add this as a **🧪 Pre-Execution Sanity Check** section in the ticket template below.
+
 ---
 
 ## 🎫 Ticket Template for Fizzy/Cursor
@@ -120,3 +139,14 @@ Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (ho
 - **Verification Step (Definition of Done):**
   - [ ] Run `npm run test:[component]`
   - [ ] Inspect the 'Network' tab to ensure a 201 Created is returned for the background job.
+
+🧪 **Pre-Execution Sanity Check:**
+
+- **Writers touched:** [list every trigger / RPC / edge fn / src write that touches affected columns; "n/a" if no constraint/default/domain change]
+- **Base branch:** [`lovable-staging` | `main` (with `-main` suffix)]
+- **RBAC story:** [new permission key + system role grants in same migration; `PermissionGate` wiring; or "n/a"]
+- **Plan-tier / feature-flag behavior:** [backend hard-gate path; frontend soft-gate copy; or "n/a"]
+- **3 ways this plan could be wrong:**
+  1. [honest one-liner]
+  2. [honest one-liner]
+  3. [honest one-liner]
