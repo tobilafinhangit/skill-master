@@ -53,10 +53,30 @@ Debuging is not guessing. It is the process of forming hypotheses and testing th
     - *Why?* User ID was undefined in the request.
     - *Why?* LocalStorage was cleared. -> **Root Cause**.
 
+### Phase 4.5: Quantify Blast Radius (Mandatory)
+**Goal**: Find every user/record affected, not just the reporter.
+
+Once a root cause is identified — even tentatively — invoke the `impact-analysis` skill to quantify how many other records or users are affected by the same root cause. The reporter is rarely the only one. This step is **mandatory before applying the fix** because it determines whether the work is just a code fix or also requires:
+- A backfill (fixing data that's already broken)
+- A user notification (telling affected users what happened)
+- A different fix shape (a per-record symptom may be platform-wide)
+
+**How to apply:**
+1. Run `impact-analysis` against the root cause hypothesis. Pass the failing condition as a SQL or PostgREST filter (e.g., "candidates with `status='scoring'` for >2h", "edge functions sending `Authorization: Bearer` to `/functions/v1/*`").
+2. Report `affected_count` to the user explicitly: "Reporter is 1 of N affected — N=…".
+3. Decide the fix shape based on `N`:
+    - `N == 1` → code fix only, no backfill.
+    - `1 < N < 50` → code fix + targeted backfill SQL or repair script. Surface a list to the user.
+    - `N >= 50` or any user-facing data integrity / billing impact → code fix + backfill + outbound notification (apology email, in-app banner, Discord ops note). Open a follow-up ticket if the backfill is non-trivial.
+4. If the impact query itself errors (Supabase MCP / PostgREST blip), do NOT block the fix — log the failure to the user and proceed with code fix only, but flag it as an explicit unknown.
+
+**Why this is here:** Prior incidents (HoaQ apology — 605 emails, survey-401 — 76 candidates, stranded candidates — 927 affected) all had the same shape: the reporter surfaced one symptom, the agent fixed code, and the broader population was discovered only when the user manually asked "how many people did this affect?" Standardizing this step turns reactive triage into a default safety net.
+
 ### Phase 5: Experiment & Fix
 **Goal**: Validate hypothesis and implement the cure.
 - **Test the Hypothesis**: Add a log or a check to confirm your suspicion *before* fixing it.
 - **Implement the Fix**: Fix the root cause, not just the symptom. Avoid "band-aid" null checks if the data should exist.
+- **Backfill / Notify** (if Phase 4.5 indicated): apply the data repair and send the notification *before* declaring the work done. A code fix that leaves bad data behind is half a fix.
 - **Code Review Self-Check**:
     - Does this introduce a regression?
     - Is this the simplest fix?
