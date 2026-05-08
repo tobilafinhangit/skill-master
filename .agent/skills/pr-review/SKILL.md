@@ -11,6 +11,16 @@ Review a GitHub PR against its Fizzy ticket — verify the engineer delivered wh
 
 **Announce at start:** "I'm using the pr-review skill to review this PR against its ticket."
 
+## Review Hygiene (read this first)
+
+Every invocation begins with a fresh `gh` and Fizzy API GET — never reuse drafts, comments, or analysis from a prior session.
+
+- ❌ Do NOT read pre-existing files under `.claude/tickets/`, `.claude/notes/`, `/tmp/*review*`, or any path that looks like a previously-authored draft for this PR or ticket. Even files matching the current PR/card number are stale by definition — the source of truth is the live API.
+- ❌ Do NOT reuse a verdict, issue list, or comment body that was generated for a different PR earlier in this chat or a previous session. Posting #712's findings on #740 is the canonical failure mode this rule prevents (Fizzy #794, May 2026).
+- ✅ Always start from `gh pr view --json ...` + `gh pr diff` + a Fizzy API GET of the card and its comments (the existing "Resolve Inputs" workflow). Synthesize fresh.
+- ✅ If you find an existing draft file matching the current target, surface it to the user as a warning ("there's a draft at `.claude/tickets/<x>.md` from an earlier session — ignoring it; ask if you'd like me to delete it") but do not read or reuse it.
+- ✅ Don't gloss the verdict. If there are action items, enumerate them explicitly even if minor — user pushback like "so nothing is wrong?" is the signal that the verdict was over-summarized.
+
 ## When to Use
 
 - When reviewing a PR from an engineer before merging
