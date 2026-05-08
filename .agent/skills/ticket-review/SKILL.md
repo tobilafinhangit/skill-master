@@ -11,6 +11,15 @@ Review Fizzy tickets through a panel of a senior full-stack engineer, a product 
 
 **Announce at start:** "I'm using the ticket-review skill to review this ticket."
 
+## Review Hygiene (read this first)
+
+Every invocation begins with a fresh Fizzy API GET — never reuse drafts or analysis from a prior session.
+
+- ❌ Do NOT read pre-existing files under `.claude/tickets/`, `.claude/notes/`, `/tmp/*review*`, or any path that looks like a previously-authored draft for this card. Even files matching the current card number are stale by definition — the source of truth is the live Fizzy API.
+- ❌ Do NOT reuse a panel verdict, critique, or comment body that was generated for a different card earlier in this chat or a previous session. Posting #712's review on #740 is the canonical failure mode this rule prevents (Fizzy #794, May 2026).
+- ✅ Always start from a live Fizzy API GET of the card + its comments (Step 1 below). Synthesize fresh.
+- ✅ If you find an existing draft file matching the current card, surface it to the user as a warning ("there's a draft at `.claude/tickets/<x>.md` from an earlier session — ignoring it; ask if you'd like me to delete it") but do not read or reuse it.
+
 ## When to Use
 
 - When reviewing tickets from PMs or designers for technical accuracy
