@@ -256,6 +256,27 @@ QA Handoff Complete:
 - 🔗 PR: {PR_URL}
 ```
 
+### Step 11: Stale-Worktree Nudge (debt control)
+
+qa-handoff is the structural *generator* of stale worktrees: it merges the PR but deliberately never removes the source worktree (QA can fail and you'd need it back; users also return for follow-up commits). So merged-PR worktrees accumulate silently until someone notices dozens. **Do NOT auto-delete the source worktree here** — that destroys QA-fail/return-to-worktree work. Instead, surface the debt at this natural checkpoint.
+
+Only runs if the repo has a `.claude/worktrees/` directory. Cheap, read-only:
+
+```bash
+if [ -d .claude/worktrees ]; then
+  STALE=$(git worktree list --porcelain | awk '/^worktree /{w=$2} /^branch /{b=$2;sub("refs/heads/","",b); if (w ~ /\.claude\/worktrees\//) print b}' | while read b; do
+    [ -n "$b" ] && gh pr list --head "$b" --state merged --json number --jq '.[0].number' 2>/dev/null | grep -q . && echo x
+  done | wc -l | tr -d ' ')
+  if [ "${STALE:-0}" -gt 10 ]; then
+    echo "🧹 ${STALE} merged-PR worktrees in .claude/worktrees/ — stale debt building."
+    echo "   Run the sweep in .claude/rules/branch-and-worktree-policy.md (Stale worktree cleanup)."
+    echo "   It also prunes the orphaned local branches (the bigger iceberg)."
+  fi
+fi
+```
+
+Print the nudge as the last line of the handoff confirmation when it fires. Threshold 10 is deliberately loose — this is a periodic reminder, not a gate. Never block the handoff on it. The sweep itself stays user-confirmed and lives in the rule file (single source of truth — do not inline the removal logic here).
+
 ## Fizzy API Reminders
 
 - Always use `.json` suffix on all endpoints (returns 401 without it)
