@@ -39,6 +39,20 @@ ON CONFLICT (version) DO NOTHING;
 
 Without this, any future `supabase db push` tries to re-run already-applied SQL. Tickets that create a new migration file must include this line in the Logic Change / Verification sections.
 
+**Data API grants (required for every ticket that creates a `public` table):**
+Supabase's implicit "auto-expose every `public` table to the Data API" default is removed (enforced on our existing project 2026-10-30). Any `CREATE TABLE public.<t>` in a migration must, in the *same* migration, include explicit grants alongside RLS + policies:
+
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.<t> TO authenticated;  -- tailor per role
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.<t> TO service_role;   -- always; edge fns need it
+-- GRANT SELECT ON public.<t> TO anon;  -- only if read unauthenticated
+-- GRANT USAGE, SELECT ON SEQUENCE public.<t>_id_seq TO authenticated, service_role;  -- if identity/serial
+ALTER TABLE public.<t> ENABLE ROW LEVEL SECURITY;
+-- + policies
+```
+
+Treat GRANT + RLS + policy as one unit. Existing tables are grandfathered; this is forward-only. See `.claude/rules/data-api-explicit-grants.md` for the per-role privilege guide. Verification section must include: grep the new migration to confirm a `GRANT ... TO (authenticated|service_role)` accompanies each new `CREATE TABLE public.`.
+
 **RBAC scaffolding (required for every admin-facing ticket):**
 If the ticket adds an admin page, admin RPC, or admin-gated edge function, the same migration MUST include:
 
