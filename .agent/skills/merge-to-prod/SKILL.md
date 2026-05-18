@@ -1,7 +1,7 @@
 ---
 name: merge-to-prod
 description: Opens or updates a staging→main PR covering all Fizzy cards in the "Merge to Prod" column, audits git vs the column (flags shipped cards for closure and premature cards for move-back), and drafts a terse batched PR title/body. Auto-detects integration/target branches and Fizzy board per repo. Use when a batch of tickets has cleared QA + manual UX testing and is ready to ship to production.
-version: 1.0.0
+version: 1.1.0
 license: MIT
 ---
 
@@ -90,26 +90,45 @@ For each card `#N`, classify into one of four buckets.
    ```bash
    git log --oneline origin/$MAIN..origin/$STAGING | grep -E "(#$N[^0-9]|/$N[-/]|$N-)"
    ```
-2. **Already in main** — repeat step 1 against `origin/$MAIN` on its own recent history (last ~60 days):
+2. **PR-link / QA-signoff containment** *(most reliable — branch- and squash-name-agnostic; run this before concluding anything is premature)* — the card body and comments almost always carry an explicit `PR #NNN` and a QA "FULL PASS / sign-off" comment. That PR's merge commit is the authoritative signal, not commit-message tokens:
+   ```bash
+   # Pull card body + comments, extract every PR number referenced
+   PRS=$( { echo "$CARD_DESC"; echo "$CARD_COMMENTS"; } \
+          | grep -oE '(PR )?#[0-9]{2,5}|pull/[0-9]{2,5}' | grep -oE '[0-9]{2,5}' | sort -u )
+   for PR in $PRS; do
+     SHA=$(gh pr view "$PR" --json mergeCommit,state -q \
+            'select(.state=="MERGED") | .mergeCommit.oid' 2>/dev/null)
+     [ -z "$SHA" ] && continue
+     if git merge-base --is-ancestor "$SHA" origin/$MAIN 2>/dev/null; then
+       echo "#$N → 🟢 already in main via PR #$PR ($SHA)"; break
+     elif git merge-base --is-ancestor "$SHA" origin/$STAGING 2>/dev/null; then
+       echo "#$N → ✅ covered: PR #$PR in staging, will ship in this batch"; break
+     fi
+   done
+   ```
+   Cards shipped in a *prior* `staging→main` batch land here as 🟢 — the single most common real state of a stale Merge-to-Prod column. A no-code card (manual test/QA task) with a QA full-pass and no PR is also resolved here → 🟢 (completed task, close it).
+3. **Already in main (number grep)** — repeat step 1 against `origin/$MAIN` recent history (last ~60 days):
    ```bash
    git log --all --since="60 days ago" --oneline | grep -E "(#$N[^0-9]|/$N[-/])"
    # For each hit, check containment:
    git branch -r --contains <sha> | grep -q "origin/$MAIN"
    ```
-3. **Open PR into staging** — a PR targeting `$STAGING` exists whose branch or title references `N`:
+4. **Open PR into staging** — a PR targeting `$STAGING` exists whose branch or title references `N`:
    ```bash
    gh pr list --search "$N in:title" --base $STAGING --state open --json number,headRefName
    ```
-4. **Keyword fallback** — extract 2-3 distinctive words from the card title (skip priority emojis, type words, "Phase 3", etc.) and grep commit messages across all branches, then check containment.
+5. **Keyword fallback** — extract 2-3 distinctive words from the card title (skip priority emojis, type words, "Phase 3", etc.) and grep commit messages across all branches, then check containment.
 
 Buckets:
 
 | Bucket | Definition | Planned action |
 |---|---|---|
-| ✅ **Covered** | Step 1 found at least one commit in `staging..main` | Include in PR body |
-| 🟢 **Already in main** | Step 2 found a commit already on `origin/$MAIN` (shipped in a prior batch or via a different PR) | Flag for **closure** (state → done) |
-| ❌ **Premature** | Step 3 found an open PR into staging (not yet merged); OR no commits anywhere | Flag for **move-back** to QA |
-| ❓ **Unknown** | No matches at all — ask the user before taking any action on this card | — |
+| ✅ **Covered** | Step 1 or step 2 found a commit/PR-merge in `staging..main` | Include in PR body |
+| 🟢 **Already in main** | Step 2 or step 3 found the card's PR-merge / commit is an ancestor of `origin/$MAIN` (shipped in a prior batch, via a differently-named branch, or a no-code task with QA full-pass) | Flag for **closure** (state → done) |
+| ❌ **Premature** | Step 4 found an open PR into staging (not yet merged); OR no commits/PRs anywhere **and no QA full-pass on the card** | Flag for **move-back** to QA |
+| ❓ **Unknown** | No matches at all | Ask the user before any action |
+
+> **Guardrail — never silently move back a QA-passed card.** If a card carries a QA "FULL PASS / sign-off" comment but steps 1–5 find nothing, do **not** classify it ❌ Premature and move it back to QA. A passed card with no detectable commit is almost always a *finalize gap* (its work shipped in an earlier batch under an unrelated branch/squash name), not missing work. Classify it ❓ Unknown and surface it explicitly for a human decision. Moving a genuinely-shipped, QA-signed card back to QA is the costlier error than leaving it in place one extra cycle.
 
 **Also collect infra commits** in `staging..main` that don't match any card — group them under "Infra / chore" in the PR body.
 
