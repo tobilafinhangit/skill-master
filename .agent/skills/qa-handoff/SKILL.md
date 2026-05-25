@@ -219,6 +219,62 @@ fi
 - Use `--merge` (merge commit) by default — this repo's history shows merge commits, not squash. If the repo uses squash, override with `--squash`.
 - If the PR base is not the integration branch (e.g. PR base is `main`), STOP and alert — qa-handoff is for integration→QA flows only.
 
+### Step 8.5: Edge-Function Redeploy Gate (skip if no edge-fn changes)
+
+`qa-mirror` reflects integration-branch *frontend* code, but it hits the same globally-deployed `/functions/v1/*` edge functions as production. If this handoff's diff touches edge fns or `_shared/`, QA will be testing the new UI against the **old** edge-fn code — silent broken handoff. **Gate qa-mirror sync on the redeploy.**
+
+```bash
+# Detect edge-fn changes between the live deploy (qa-mirror tip) and what we're
+# about to QA (integration branch tip). Use origin refs — local may be stale.
+git fetch origin $QA_MIRROR_BRANCH $INTEGRATION_BRANCH
+
+CHANGED_FN_DIRS=$(git diff --name-only origin/$QA_MIRROR_BRANCH...origin/$INTEGRATION_BRANCH \
+  -- 'supabase/functions/fn_*/index.ts' 2>/dev/null \
+  | awk -F/ '{print $3}' | sort -u)
+
+CHANGED_SHARED=$(git diff --name-only origin/$QA_MIRROR_BRANCH...origin/$INTEGRATION_BRANCH \
+  -- 'supabase/functions/_shared/*.ts' 2>/dev/null)
+
+if [ -z "$CHANGED_FN_DIRS" ] && [ -z "$CHANGED_SHARED" ]; then
+  echo "No edge-fn changes — skipping deploy gate"
+else
+  # If _shared/ changed, enumerate every fn that imports the changed file —
+  # they all need redeploy because deploys bundle current _shared/ content.
+  if [ -n "$CHANGED_SHARED" ]; then
+    for shared in $CHANGED_SHARED; do
+      base=$(basename "$shared" .ts)
+      importers=$(grep -rl "_shared/$base" supabase/functions/ \
+        --include='index.ts' 2>/dev/null \
+        | awk -F/ '{print $3}' | sort -u)
+      CHANGED_FN_DIRS=$(printf '%s\n%s\n' "$CHANGED_FN_DIRS" "$importers" | sort -u | sed '/^$/d')
+    done
+  fi
+fi
+```
+
+**If `CHANGED_FN_DIRS` is non-empty, STOP and prompt the user:**
+
+```
+⚠ Edge-function redeploy required before QA can test this handoff.
+
+The following functions changed (or import a changed _shared file) since
+the last qa-mirror sync. QA must hit the new code, so deploy these first:
+
+  ./scripts/deploy-edge-fn.sh \
+    fn_send_candidate_invites \
+    fn_resend_skills_invite \
+    ...
+
+I'll wait — once deployment succeeds, say "deployed" and I'll continue
+with qa-mirror sync (Step 9).
+```
+
+**Guardrails:**
+- Do NOT proceed to Step 9 until the user confirms the deploy. A premature qa-mirror sync surfaces a UI built against new edge fns + production hitting old ones — false-negative QA.
+- The deploy guard (`deploy-edge-fn.sh`) only allows running from `main` / `lovable-staging` / `qa-mirror`. Since we just merged into the integration branch in Step 8, the user can run it from there without `--allow-feature-branch`.
+- If the user can't deploy right now (e.g. CI pipeline busy, env access pending), they can answer "skip" and the skill continues with a loud warning in the Step 10 confirmation. Don't silently allow skipping.
+- Do not run the deploy command yourself — deploys are user-authorized actions. The skill prompts and waits.
+
 ### Step 9: Sync qa-mirror (skip if `qaMirrorBranch` not detected)
 
 `qa-mirror` points at the live production DB and must reflect the integration branch. Sync after every handoff.
