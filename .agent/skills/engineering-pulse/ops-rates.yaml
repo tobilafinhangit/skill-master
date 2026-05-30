@@ -33,6 +33,10 @@ boards:
     name: bugs
   - id: 03fqeqfxt4s5h8spz9eyqf5vq
     name: vetted-onboarding
+  - id: 03fwhvosyb36wblf0ugta4zf0
+    name: qa-automation       # added 2026-05-30 (Fix 6) so Elvis's automation tracking is scanned
+# Deliberately NOT scanned (non-engineering surfaces — revisit if engineers track work there):
+#   Data Science 03ftd0879dj65en1lpvwv5a8v · Growth 03g73ysbcc871rlmp1i1owogb · Finance 03g5m5kujvxhnjyf3eenj2op1
 
 # Card-number scan range. Fizzy card numbers are global across the account and
 # monotonically increasing. Each monthly run should cover the full active range.
@@ -92,6 +96,35 @@ categories:
       - 'qa failed —'
       - 'qa passed'
     min_length: 400
+
+  # QA verdict detection (Fix 3, 2026-05-30). This is a CAPACITY signal (tickets
+  # tested), NOT a paid category — surfaced in the "Capacity & Invisible Work"
+  # section, not the ops payable total.
+  #
+  # WHY a separate detector: the `manual-qa` keywords above missed ~97% of Elvis's
+  # work. He posts verdicts as `TICKET #X — QA REVIEW SIGN-OFF` / `QA BLOCK` /
+  # `UI TESTING SIGN-OFF`, none of which match the narrow manual-qa prose. May
+  # reality: 227 QA-verdict comments across 190 distinct cards vs 7 the old
+  # detector found. For qa-role engineers, do NOT rely on the manual-qa keywords —
+  # use the structural + format-tolerant signals below.
+  qa-verdict:
+    surface: qa_verdict           # tells the scanner: structural column-move + format-tolerant regex
+    measure: tickets_tested       # a COUNT for Capacity & Invisible Work, not a paid subtotal
+    # Primary (structural): card moved INTO or OUT OF any QA column below = a QA
+    # action regardless of comment wording. Column IDs from
+    # .claude/rules/fizzy-api-patterns.md. This is the robust signal — it does not
+    # depend on prose at all.
+    qa_column_ids:
+      - 03fnl3h1becpuazzhahxbn208  # Bugs board — QA
+      - 03fdi5xotshcmiuqk8pj24b23  # Vetted board — QA
+      - 03f58rxrkofln7o86yce47gvk  # Congrats board — QA
+      - 03fmdk5fq40na6wnq23o2itge  # Product board — QA to be confirmed
+    # Secondary (format-tolerant regex, case-insensitive): catches verdicts even
+    # when the card wasn't moved (comment-only sign-off / block).
+    verdict_regex: 'qa (review )?sign-?off|qa block|ui testing sign-?off|qa engineer:\s*\w'
+    # Optionally split pass vs fail for the Capacity row (block/fail vs sign-off/pass):
+    block_regex: 'qa block|qa fail'
+    signoff_regex: 'qa (review )?sign-?off|ui testing sign-?off|qa pass'
 
   # Production triage tickets — opened on the Bugs board after running
   # alerts-vetted / alerts-congrats / troubleshooting skills. These don't

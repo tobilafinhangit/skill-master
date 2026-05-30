@@ -1,14 +1,14 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.0.0
+version: 3.1.0
 license: MIT
 metadata:
   author: VettedAI
   category: engineering-management
   tags: [productivity, performance-review, team-health, velocity, delegation, bounty]
   created: 2026-03-11
-  updated: 2026-05-01
+  updated: 2026-05-30
 argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--pre-invoice] [--draft|--payout]"
 ---
 
@@ -46,6 +46,23 @@ repos:
 **Target branches:** Only count PRs merged into one of the per-repo `integration_branches`. PRs between feature branches are excluded. Each repo can have its own integration branch (e.g., `lovable-staging` for audition, `verify-deployments` for congrats, `staging` for nts).
 
 If a repo path doesn't exist on disk or `gh` returns auth errors for it, log a warning and continue with the remaining repos — never block the whole report on one missing repo.
+
+### Repo-allowlist drift check (run every report — the sustainable scaling mechanism)
+
+Auto-discovery across "everywhere an engineer works" is impossible by construction: from the founder's `gh` only his orgs (`Generous-Circle`, `congratsai`, `Vetted-AI`) + his own repos are visible — engineers' personal repos are not. So `repos.yaml` is a **curated allowlist, never auto-inclusion.** Make curation cheap: each run, enumerate org repos pushed within the window, diff against the allowlist, and emit a **"new repos not in allowlist → project or ignore?"** prompt for the manager (~30-second monthly triage):
+
+```bash
+for org in Generous-Circle congratsai Vetted-AI; do
+  gh repo list "$org" --limit 100 --json nameWithOwner,pushedAt \
+    --jq ".[] | select(.pushedAt >= \"$WINDOW_START\") | .nameWithOwner"
+done   # diff against repos.yaml; anything new → ASK, never auto-add
+```
+
+Fails safe: an unknown repo is flagged + **not measured**, never silently counted. Personal-owned project work (e.g. Elvis's automation code, currently on a personal repo) is measured via its Fizzy board (the `qa-automation` board in `ops-rates.yaml`), or moved into an org to become visible — never crawled. Known parked/dormant repos to keep ignoring: `Vetted-AI/recruiters-ring` (sole PR by `nzommmo`, off roster), `Generous-Circle/GC-Back` (dormant).
+
+### No-silent-zero rule (coverage honesty)
+
+Until a coverage gap is closed, the report MUST print an explicit **"not measured"** line for that surface/person rather than implying a zero. A silent zero reads as "did nothing"; it usually means "we didn't look there." Concretely this covers: engineers with a missing `fizzy_user_id` (Liban, wizzfi1 — ops undetected), repos flagged by the drift check, and dormant/un-scanned boards. When a number looks shockingly low, suspect coverage before performance.
 
 ## Step 1: Determine Time Window
 
@@ -173,6 +190,11 @@ All other flags are advisory — the manager decides during review.
 
 **Net** = Gross minus revert-pair deductions.
 
+**Retainer / shadow-bounty split (Fix 3 + Fix 5).** Before totaling:
+- For each `employment: retainer` engineer, the bounty + ops Net renders as `Shadow-bounty (not paid — retainer): X KES` with the footnote: _"Floor, not ceiling. Infra/security/investigation work is under-measured by line/task proxies — see the Capacity & Invisible Work section and value note."_ This is **internal-only** — never include it in an engineer-facing statement.
+- `retainer_role: qa` engineers: suppress the shadow-bounty number entirely (it's not a meaningful measure of QA work); show only their Capacity & Invisible Work row.
+- **Team total payable EXCLUDES all shadow-bounty.** Compute "Team total payable" = sum of Net for `employment: bounty` engineers only. Show the shadow-bounty total separately as a clearly-labeled non-payable line, e.g. `Shadow-bounty (retained engineers, not paid): Y KES`.
+
 Show a **monthly projection** only for windows of 14+ days:
 | Author | Net (KES) | Window Days | Projected Monthly (KES) | Projected Monthly (USD @ 130) |
 For windows under 14 days, show actuals only with a note: "Window too short for reliable monthly projection."
@@ -180,6 +202,20 @@ For windows under 14 days, show actuals only with a note: "Window too short for 
 ### 5g. Reviews Given
 | Author | Reviews Given | Substantive Reviews (with comments) | Avg Review Turnaround (hours) |
 Pull from `gh api` review data. This section is informational — review work is not bounty-compensated in v2 but is surfaced so the manager can factor it into payout decisions.
+
+### 5g-bis. Capacity & Invisible Work (signal, not payment)
+
+This section captures the work that line/task proxies systematically under-read — infra, security, investigation, review, QA — as **robust structural counts**, never keyword-based paid categories. Show it next to shadow-bounty so a low shadow figure is immediately contextualized (a low number for an infra/security engineer is almost always under-measurement, not low output — strategy §2). One row per engineer:
+
+| Engineer | PRs Reviewed | Tickets Resolved-by-Comment | QA Verdicts (tickets tested) | Open / In-Flight PRs | Open PR Lines (Add+Del) |
+
+Computation:
+1. **PRs reviewed** — count of **distinct cards** where the engineer authored a matched `pr-review` comment. Already detected; just surface the deduped-per-card count (Fix 5 dedup). Cheap.
+2. **Tickets resolved-by-comment** — count of cards the engineer closed or where their comment drove closure. Detection: their authored comment matches `closing as|closed as|resolved —|superseded by|obsolete|no action needed|stale` near the start, OR they are the actor on the card's closure event. This is a **count, not a paid category** — it captures investigation/triage (Theo's largest contribution type) without parsing prose.
+3. **QA verdicts (tickets tested)** — from the `qa-verdict` surface (structural column-move into/out of a QA column + format-tolerant regex). Distinct cards. For qa-role retainers this is the primary capacity measure. (May reality: Elvis ≈ 227 verdicts across 190 distinct cards — the old `manual-qa` keywords saw 7.)
+4. **Open / in-flight PRs (+ lines)** — `gh pr list --state open --author <login>` per repo, summing additions+deletions. Surfaces work trapped in review/CI (Kenn's ~9k unmerged lines would show here). **Counts and lines only — do not tier or pay.**
+
+These four are **explicitly signal, not payment.** Do NOT convert them into bounty subtotals. They contextualize shadow-bounty and inform the conversion / capacity decision (strategy §4, §6). For any engineer or surface not actually scanned (missing `fizzy_user_id`, repo outside the allowlist), print **"not measured"** in the cell — never an implied 0 (strategy coverage rule: a silent zero reads as "did nothing"; it usually means "we didn't look there").
 
 ### 5h. Summary Table
 | Author | Feature PRs | Dominant Tier | PRs/Week | Top Repo | Net Bounty (KES) | Flags |
@@ -201,6 +237,9 @@ After the tables, add a **Management Insights** section with actionable observat
 5. **Risk flags** — Single points of failure (one person owns an entire repo), idle contributors, or bus factor concerns.
 6. **Bounty ROI** — For each contributor, is the estimated payout proportional to the value delivered? Flag anyone where the bounty seems disproportionate to output quality.
 7. **Blind spots** — This report measures merged code output only. Investigation, debugging, architecture review, incident response, code review, and mentoring are NOT captured. The manager should adjust payouts for contributors whose primary value is diagnostic or architectural.
+8. **Conversion watch (auto-flag).** Auto-flag any **bounty** engineer (`employment: bounty`) whose trailing figure (bounty + ops Net, ideally over 2–3 months) ≥ ~70% of a reference retainer (default 30k, i.e. ≥ ~21k) as a **conversion candidate**. Surface the §4 three-gate checklist for the manager: (1) shadow-bounty ≥ ~70–80% of retainer cost over a trailing 2–3 months, (2) capacity headroom looks real (velocity, multi-repo spread, responsiveness), (3) quality is clean (low revert rate, low QA-fail rate, few flags). Below the bar, keep them on bounty — it's cheaper, flexible, self-limiting. (May: Daniella ≈ 29.6k clears the gate today; next is DBusuru ~16k, not close.)
+9. **Per-retained-engineer value note.** For each `employment: retainer` engineer, render a templated 1–2 line free-text field (`value_note`, filled monthly by the manager) — e.g. _"Oussama — webhook hardening + memory-exhaustion fix; high-leverage security, low line-count by nature."_ This is the only judgement of an infra/security engineer's value that should carry weight; the shadow-bounty is a floor, never a ceiling (strategy §2, §5). Leave a blank placeholder line if the manager hasn't supplied one this period.
+10. **Coverage / "not measured" honesty.** Explicitly list every surface or person we did NOT scan this run (missing `fizzy_user_id`, repos outside the allowlist, dormant boards). Print "not measured" for each — never let an un-scanned person read as a zero. When a number looks shockingly low, suspect coverage before performance.
 
 ## Step 6: Save the Report
 
@@ -349,11 +388,32 @@ In addition to bounty (merged PRs), engineers earn for skill-assisted ops work t
 
 **Algorithm:**
 1. For each card number in `ops-rates.yaml > card_scan_range`, fetch `/comments.json` (parallelize via thread pool, ~25 workers, ~10 seconds for 800 cards). Also fetch the card metadata itself (`/cards/{n}.json`) so card creators can be matched for the prod-triage category.
+
+   **The comments endpoint paginates at 15 comments/page** via a `Link: <…?page=2>; rel="next"` response header. You MUST follow the `Link` rel="next" header to exhaustion per card, or you silently drop every comment past the 15th on busy cards — exactly the high-traffic infra/QA threads you most want to see (e.g. May card #179 had 47 comments; reading page 1 only saw 15). This under-counts everyone. The `get()` helper must return both the parsed body AND `resp.headers.get('Link')`. Reference implementation (verified working 2026-05-30):
+
+   ```python
+   def scan(n):
+       out = []; url = f'https://app.fizzy.do/{ACCT}/cards/{n}/comments.json'; pages = 0
+       while url and pages < 12:                      # 12-page safety cap
+           data, link = get(url)                      # get() must also return resp.headers.get('Link')
+           if not isinstance(data, list): break
+           out.extend(data); pages += 1
+           m = re.search(r'<([^>]+)>;\s*rel="next"', link or '')
+           url = m.group(1) if m else None
+       return n, out
+   ```
 2. Filter to: authored by an active engineer (via `fizzy_user_id` map) within the analysis window AND on/after the engineer's `bounty_start_date` if set. (See "Per-engineer bounty start date" below.)
 3. Classify each surface independently:
    - **Comment-based categories** (`ticket-review`, `pr-review`, `qa-handoff`, `manual-qa`): walk in priority order. A comment matches if it (a) meets `min_length`, (b) hits any of `detect_any` keywords, AND (c) hits all of `detect_all` clauses (each clause requires any of its keywords). Unmatched comments longer than `track_other_min_length` surface as "uncategorized" so the manager can refine the detectors.
    - **Card-creation categories** (`prod-triage`): when a category specifies `surface: card_creation`, scan card metadata instead of comments. Match if the card was created by the engineer's `fizzy_user_id`, on a board in the category's `boards` list, with a title hitting any of `title_detect_any`. Each matching card counts once at `rate_kes` regardless of how the engineer later updates it.
-4. Sum per-engineer per-category: `count × rate_kes` = subtotal. Net ops = sum of all category subtotals.
+   - **QA-verdict surface** (`qa-verdict`, `surface: qa_verdict`): a CAPACITY count (tickets tested), NOT a paid category. Detect a QA verdict by the **structural** signal first — a card moved into or out of any column in `qa_column_ids` is a QA action regardless of comment wording — then by the **format-tolerant** `verdict_regex` (case-insensitive) for comment-only sign-offs/blocks. Do NOT rely on the narrow `manual-qa` keywords for qa-role engineers: they miss ~97% of real QA verdicts (`TICKET #X — QA REVIEW SIGN-OFF` / `QA BLOCK` / `UI TESTING SIGN-OFF`). Dedup per distinct card; optionally split block/fail vs sign-off/pass via `block_regex` / `signoff_regex`. Surfaces in "Capacity & Invisible Work", not in the ops payable total.
+4. **Dedup ops matches per `(engineer, card, category)` — we do not pay for re-reviewing/re-testing the same card** (Tobi, 2026-05-30). Within a single card, collapse repeat matches of the same category by the same engineer to ONE. **Distinct-sub-branch exception:** a single Fizzy card carrying multiple distinct sub-branch PRs (e.g. #672 = 672a–e) counts each distinct branch — detect distinct branch/PR refs in the matched comments and credit one per distinct ref; fall back to per-card (one) if no distinct refs are found.
+5. Sum per-engineer per-category: `count × rate_kes` = subtotal. Net ops = sum of all category subtotals.
+
+   **Retainer awareness (see `engineers.yaml > employment`):**
+   - `employment: bounty` (or absent) → ops + bounty figure is **payable**; behaves as today.
+   - `employment: retainer`, `retainer_role: engineering` → compute bounty + ops as **shadow-bounty (not paid — retainer)** (Fix 5). EXCLUDE it from team total payable; show it separately, labeled.
+   - `employment: retainer`, `retainer_role: qa` → **suppress the PR/shadow-bounty entirely.** Measure on QA throughput (manual-QA sessions + tickets tested via the `qa-verdict` surface) in "Capacity & Invisible Work". Near-zero QA throughput in the window is a flag to surface, not a number to compute.
 
 **Per-engineer bounty start date.** When an engineer's `bounty_start_date` is set in `engineers.yaml`, all PRs / comments / card creations attributed to them must satisfy `event_date >= bounty_start_date`. Pre-agreement work is not bounty-eligible — even if it shipped during the analysis window. Apply the filter at the source-merging step (PR `mergedAt`, comment `created_at`, card `created_at`), not as a downstream filter, so subtotals are accurate from the start. If the field is missing or null, no filter is applied.
 
@@ -373,7 +433,8 @@ In addition to bounty (merged PRs), engineers earn for skill-assisted ops work t
 ### Founder, QA, and unregistered contributors
 
 - **Founder:** never gets a pre-invoice statement (sweat equity).
-- **QA (Elvis):** never gets a PR-based statement.
+- **QA (Elvis):** never gets a PR-based statement. As a `retainer_role: qa` engineer he is measured on QA throughput (manual-QA + `qa-verdict` tickets tested) in Capacity & Invisible Work, not on PRs or shadow-bounty.
+- **Retainer engineers (`employment: retainer`):** never get a payable pre-invoice statement — the retainer does not stack with bounty. Their bounty + ops is computed as internal-only **shadow-bounty** (a floor, not a ceiling) and excluded from team total payable. The only thing ever shared with a retained engineer is the value note, never the shadow-bounty number.
 - **Engineers with PRs but no `engineers.yaml` entry:** team payout report counts their bounty; no statement file is written. The skill prints a one-line warning suggesting the user add them to `engineers.yaml` if they should be invoiced.
 
 ## Bounty Rate Reference
@@ -401,6 +462,8 @@ These rates are fixed in KES (Kenyan Shillings). They are intentionally conserva
 - The analysis script is self-contained in a Python block. **Allowed deps: stdlib + `pyyaml`** (for parsing `repos.yaml`, `engineers.yaml`, `ops-rates.yaml`). Install with `pip3 install --quiet pyyaml` if missing.
 - **Fizzy auth:** the `--pre-invoice` mode hits the Fizzy API for ops detection. Source the token from `.env.local` before running: `set -a && source <repo>/.env.local && set +a` — exposes `FIZZY_API_TOKEN` for the Python script to read via `os.environ`. See [.claude/rules/env-local-credentials.md](../../../../.claude/rules/env-local-credentials.md).
 - **Fizzy API patterns:** use `urllib.request` (stdlib) with `Authorization: Bearer ${FIZZY_API_TOKEN}` and `User-Agent: VettedAI/1.0`. Always append `.json` to action endpoints. See [.claude/rules/fizzy-api-patterns.md](../../../../.claude/rules/fizzy-api-patterns.md). Parallelize card-fetches via `ThreadPoolExecutor(max_workers=25)` — ~10 seconds for 800-card scan.
+- **Fizzy comments paginate at 15/page via `Link: rel=next` — follow to exhaustion or you silently undercount busy cards.** The `get()` helper must surface `resp.headers.get('Link')` so the scan loop can chase `rel="next"` (reference loop in the Ops algorithm, step 1).
+- **Fizzy comment `body` is an object `{plain_text, html}`, NOT a bare string.** Read `body['plain_text']` (fall back to stripping `body['html']`); treating `body` as a string throws `TypeError`. Same for QA-verdict / resolved-by-comment detection.
 - **Card scan range** in `ops-rates.yaml > card_scan_range` should be tuned periodically as Fizzy card numbers grow. Underestimating misses recent ops; overestimating just costs a few extra seconds.
 - If lines/files counts look anomalous (e.g., >50K lines in a single PR), flag it as likely containing generated/vendor files
 - Always note the CI noise percentage in the final summary so managers see the true signal
@@ -414,6 +477,8 @@ These rates are fixed in KES (Kenyan Shillings). They are intentionally conserva
 | System | Source of truth | What it counts |
 |---|---|---|
 | Bounty (PRs) | `gh pr list` across `repos.yaml` | Merged PRs into integration branches, tiered S/M/L/XL by lower of files/lines |
-| Ops contributions | Fizzy comments + card creations across `ops-rates.yaml > boards` | pr-review, qa-handoff, ticket-review, manual-qa (comments) + prod-triage (card creations) |
+| Ops contributions | Fizzy comments + card creations across `ops-rates.yaml > boards` | pr-review, qa-handoff, ticket-review, manual-qa (comments) + prod-triage (card creations). Deduped per `(engineer, card, category)` — no re-reviews; distinct-sub-branch exception |
+| Capacity & Invisible Work (signal, not paid) | Fizzy comments + `gh pr list --state open` | PRs reviewed, tickets resolved-by-comment, QA verdicts (tickets tested), open/in-flight PRs + lines |
+| Employment / payability | `engineers.yaml` `employment` | `bounty` → payable; `retainer` → shadow-bounty (not paid, excluded from team total); `retainer_role: qa` → suppress shadow-bounty, measure on QA throughput |
 | Advances | `reports/payouts/balances.json` | Explicit advance agreements, lifecycle pending → applied → settled |
 | Per-engineer eligibility | `engineers.yaml` `bounty_start_date` | Filter applied to PRs / comments / card creations: `event_date >= bounty_start_date` |

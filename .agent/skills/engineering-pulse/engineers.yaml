@@ -30,6 +30,30 @@
 # when computing that engineer's totals. If the field is missing or null, no
 # filter is applied (treat as "always eligible" — usual case for long-tenured
 # folks). YYYY-MM-DD format. Inclusive of the start date itself.
+#
+# `employment` declares how the engineer is paid:
+#   - bounty   → bounty + ops figure is PAYABLE (behaves as before; the default
+#                when the field is absent)
+#   - retainer → engineer is on a fixed monthly retainer that does NOT stack with
+#                bounty. Their computed bounty + ops renders as "Shadow-bounty
+#                (not paid — retainer)" and is EXCLUDED from team total payable.
+#                Shadow-bounty is a FLOOR, not a ceiling — infra/security/
+#                investigation work is systematically under-measured by line/task
+#                proxies, so a low shadow figure is NOT a verdict. See the
+#                "Capacity & Invisible Work" section + the per-engineer value note.
+# `retainer_kes_month` — the monthly retainer amount (null/omit for bounty engineers).
+# `retainer_role` — engineering | qa.
+#   - engineering → measured via PRs + ops (rendered as shadow-bounty).
+#   - qa          → suppress the PR/shadow-bounty entirely; measured on QA
+#                   throughput (manual-QA sessions + tickets tested) via the
+#                   structural proxies in "Capacity & Invisible Work". A QA
+#                   retainer with near-zero QA throughput in the window is a flag
+#                   to surface, not a number to compute.
+# `value_note` (retainer engineers only, optional) — a 1–2 line free-text note the
+#   manager fills monthly, rendered verbatim into the Management Insights value-note
+#   field. This is the only judgement of an infra/security engineer's value that
+#   should carry weight — the shadow-bounty is a FLOOR, never a ceiling. Leave blank
+#   and the report prints a placeholder prompting the manager to fill it.
 
 founder: tobilafinhangit  # excluded from bounty calculations regardless of presence below
 
@@ -46,7 +70,9 @@ engineers:
     display_name: Liban Hassan
     reference_initials: LH
     currency: KES
-    fizzy_user_id:  # TODO: fill in
+    fizzy_user_id:  # TODO (Fix 6 / spec §3): discover from any card he commented on —
+    #               GET /cards/{n}/comments.json → creator.id. Until filled, his ops
+    #               are UNDETECTED; the report must print "not measured" for him, not 0.
     bounty_start_date: 2026-03-14
     active: true
 
@@ -55,6 +81,9 @@ engineers:
     reference_initials: TJ
     currency: KES
     fizzy_user_id: 03f5cmyeoj2xeixy4tkav7kc1
+    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
+    retainer_kes_month: 30000
+    retainer_role: engineering
     active: true
 
   - github: oussama22x
@@ -62,6 +91,9 @@ engineers:
     reference_initials: OE
     currency: KES
     fizzy_user_id: 03f5clrwhb0jpi7h8yxhzfc2i
+    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
+    retainer_kes_month: 30000
+    retainer_role: engineering
     active: true
 
   - github: adiela
@@ -77,13 +109,35 @@ engineers:
     currency: KES
     fizzy_user_id: 03fma4gpioiosyf3g9w409r8t
     bounty_start_date: 2026-04-14
+    employment: bounty              # do NOT flip — conversion candidate, not yet converted.
+    # Shadow-bounty ~29.6k (May) ≈ the 30k retainer line → auto-flagged as a
+    # conversion candidate in Management Insights. Flipping her to retainer is a
+    # Tobi decision via the §4 three-gate conversion checklist, tracked separately.
     active: true
 
   - github: Kariuki11
     display_name: Kennedy Kariuki
     reference_initials: KK
     currency: KES
-    fizzy_user_id:  # TODO: fill in
+    fizzy_user_id: 03fcio1nm0p43cs9ykufgphaf  # discovered 2026-05-30 by name match; verified.
+    # NOTE: do NOT confuse with Elvis's id 03fcio1h8spstjpkc82vciugk — similar
+    # prefix, different person.
+    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
+    retainer_kes_month: 30000
+    retainer_role: engineering
+    active: true
+
+  - github: Elvis  # QA. NOT in the PR bounty table; measured on QA throughput.
+    display_name: Elvis
+    reference_initials: EL
+    currency: KES
+    fizzy_user_id: 03fcio1h8spstjpkc82vciugk
+    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
+    retainer_kes_month: 30000
+    retainer_role: qa               # qa → suppress PR/shadow-bounty; measure on
+    #                                 manual-QA sessions + tickets tested (Capacity
+    #                                 & Invisible Work). Near-zero QA throughput in
+    #                                 the window is a flag to surface, not a number.
     active: true
 
   # Not yet on bounty system — PRs counted in team-wide stats, no statement generated.
@@ -94,10 +148,12 @@ engineers:
     fizzy_user_id: 03frs0fbjk4fhn041ylmxnlza  # "Joy Chepkoech" in Fizzy
     active: false  # not on bounty system yet
 
-  # No github login on record yet (no PRs in pulse window).
-  - github: wisdom-shaibu  # TODO: confirm github login
+  # No github login on record yet (no PRs in pulse window). Fizzy handle: wizzfi1.
+  - github: wisdom-shaibu  # TODO: confirm github login (Fizzy handle: wizzfi1)
     display_name: Wisdom Shaibu
     reference_initials: WS
     currency: KES
-    fizzy_user_id:  # TODO: fill in
+    fizzy_user_id:  # TODO (Fix 6 / spec §3): discover from any card wizzfi1 commented on —
+    #               GET /cards/{n}/comments.json → creator.id. Until filled, his ops
+    #               are UNDETECTED; the report must print "not measured" for him, not 0.
     active: false  # not on bounty system yet
