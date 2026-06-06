@@ -413,6 +413,7 @@ git merge lovable-staging
 - **Account slug**: `6102589`
 - **Card details**: `GET /cards/{NUMBER}.json`
 - Always append `.json` to action endpoints — returns 422 without it
+- This skill takes excluded ticket numbers as input and fetches each card individually, so it does **not** enumerate a board column and is immune to the page-1 truncation bug. **If you ever extend it to list a column** (`GET .../columns/<id>/cards.json`), that endpoint paginates at 15/page and returns only page 1 unless you follow `Link: rel="next"` / `?page=N` and assert the fetched count equals the `X-Total-Count` header — otherwise a >15-card column is silently truncated. See `merge-to-prod` Phase 2 for the pagination loop.
 
 ## Branch Reference
 
