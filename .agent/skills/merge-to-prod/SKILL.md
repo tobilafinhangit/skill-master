@@ -66,9 +66,34 @@ Only needed if auto-detection picks the wrong value:
 ```bash
 git fetch origin --quiet
 
-CARDS=$(curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns/$MERGE_COL_ID/cards.json" \
-  -H "Authorization: Bearer $FIZZY_API_TOKEN" \
-  -H "User-Agent: skill-master/merge-to-prod")
+# Fetch ALL cards in the column. Fizzy paginates at 15/page and returns ONLY
+# page 1 unless you follow the `Link: rel="next"` header / pass ?page=N. A column
+# with >15 cards is otherwise SILENTLY TRUNCATED to its first page — this masked a
+# 44-card Merge-to-Prod backlog as 15 and is why "I still see cards" recurred.
+# ALWAYS paginate to exhaustion; never trust a single unpaginated fetch.
+TMP=$(mktemp); echo "[]" > "$TMP"
+page=1
+while :; do
+  PAGE=$(curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns/$MERGE_COL_ID/cards.json?page=$page" \
+    -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+    -H "User-Agent: skill-master/merge-to-prod")
+  N=$(echo "$PAGE" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+  [ "$N" -eq 0 ] && break
+  echo "$PAGE" > "$TMP.page"
+  python3 -c "import json; a=json.load(open('$TMP')); b=json.load(open('$TMP.page')); json.dump(a+b, open('$TMP','w'))"
+  [ "$N" -lt 15 ] && break          # short page = last page
+  page=$((page+1))
+done
+CARDS=$(cat "$TMP"); rm -f "$TMP" "$TMP.page"
+
+# Sanity check: the fetched count MUST equal the column's X-Total-Count header.
+TOTAL=$(curl -s -D - -o /dev/null \
+  "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns/$MERGE_COL_ID/cards.json" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: skill-master/merge-to-prod" \
+  | grep -i '^x-total-count:' | tr -dc '0-9')
+echo "Fetched $(echo "$CARDS" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))') of $TOTAL cards in the column."
+# If these differ, pagination is broken — STOP and fix before auditing, or you
+# will finalize a partial column and leave a silent backlog.
 ```
 
 If the column is empty: stop. There's nothing to ship.
@@ -282,6 +307,9 @@ Next: after PR merges, run `/merge-to-prod --finalize <NNN>` to close the shippi
 - Token lives in `.env.local` as `$FIZZY_API_TOKEN`. Never hardcode.
 - Comment body is HTML — markdown is ignored and renders as a blob
 - Card body field is `description`, comment body field is `body` (they differ)
+- **Column listings paginate at 15/page.** `GET .../cards.json` returns only page 1 unless you follow `Link: rel="next"` / pass `?page=N`. The response carries `X-Total-Count`. Any column listing MUST loop pages to exhaustion and assert the fetched count equals `X-Total-Count` — a single fetch silently truncates a >15-card column to its first page (the cause of a 44-card backlog reading as 15).
+- **Column membership ≠ this repo.** A board's Merge-to-Prod column can hold cards whose work ships via sister repos (Congrats / backend). Detect repo via each card's QA-signoff branch name (`lovable-staging`=Vetted, `verify-deployments`=Congrats, `backend-verify-deployment`=backend) before classifying; never judge a sister-repo card against this repo's git, and never close it from here.
+- **Title-verify before trusting a PR number.** Card numbers and PR numbers collide across repos and a comment often cites *another* ticket's PR. Confirm the candidate PR's title names the ticket (`fix(#N)`/`Fizzy #N`) before using its merge commit as proof-of-ship.
 
 ---
 
