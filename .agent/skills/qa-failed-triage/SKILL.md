@@ -28,8 +28,17 @@ A "QA Failed" card is rarely "the engineer's code is wrong." Across real sweeps,
 
 ## Inputs
 
-- The board and its "QA Failed" column. For the VettedAI/Vetted board: board `03faozjl3gdngcoyzpkr4vf87`, QA-Failed column `03frpj9rn7vrewpk1y6rtcoj8`. For other repos, list columns first (see `/fizzy`).
-- Fizzy creds: `source .env.local` → `$FIZZY_API_TOKEN`. All Fizzy mechanics (`.json` suffix, `triage.json` to move, `assignee_id`, HTML comment bodies, pagination) per `/fizzy` and `.claude/rules/fizzy-api-patterns.md` — don't re-derive them.
+- **Board + "QA Failed" column — auto-detect per repo, never hardcode.** Don't assume a board; resolve it from the repo you're in:
+  1. **Board ID** — match `basename "$(git rev-parse --show-toplevel)"` against the Board Reference below → if no match, ask the user which board.
+  2. **QA-Failed column ID** — take it from the Board Reference if known; otherwise list the board's columns and match by name (case-insensitive, contains both `qa` and `fail`):
+     ```bash
+     curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns.json" \
+       -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: skill-master/qa-failed-triage" \
+       | python3 -c "import json,sys; [print(c['id'], c['name']) for c in json.load(sys.stdin) if 'qa' in c['name'].lower() and 'fail' in c['name'].lower()]"
+     ```
+     When you discover a new board's QA-Failed column ID, add it to the Board Reference (edit this file + distribute).
+- Fizzy creds: `source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null` → `$FIZZY_API_TOKEN`. All Fizzy mechanics (`.json` suffix, `triage.json` to move, `assignee_id`, HTML comment bodies, pagination) per `/fizzy` and `.claude/rules/fizzy-api-patterns.md` — don't re-derive them.
+- Phase 3 ground-truth checks are repo-relative: resolve the **integration branch** per repo (`.claude/rules/working-branch.md` / `integration-branch.md`, else the first of `lovable-staging` / `verify-deployments` / `backend-verify-deployment` on `origin`) and cite *that repo's* `.claude/rules/`. The rule filenames named in later phases are Vetted/Congrats examples — substitute the equivalents for whatever repo you're in.
 
 ## Phase 1 — Enumerate + read everything
 
@@ -87,6 +96,20 @@ Provisional class is a hypothesis. Confirm or refute it with ground truth **befo
 - ❌ Calling a plant "fixed" because the migration applies — plpgsql/CHECK bugs fail at runtime.
 - ❌ Concluding from one reported bug — impact-analyze the surface; a second blocker often hides behind the first.
 - ❌ Moving/closing cards or applying migrations to prod without the user's go-ahead.
+
+## Board Reference
+
+Used by Inputs to resolve the board + QA-Failed column per repo. Match by repo directory basename. When a board's QA-Failed column ID is missing, look it up by name (snippet in Inputs) and backfill this table.
+
+| Repo directory name | Board | Board ID | QA-Failed Column ID |
+|---|---|---|---|
+| `vettedai-audition-supabase-version` | Vetted | `03faozjl3gdngcoyzpkr4vf87` | `03frpj9rn7vrewpk1y6rtcoj8` |
+| `vetted-congrats-Flow-GENEROUS` | Congrats | `03f58rc5c48jorujpxqp5da5b` | *(lookup by name on first run)* |
+| `backend-restructing` | Congrats (shared) | `03f58rc5c48jorujpxqp5da5b` | *(lookup by name on first run)* |
+
+If no row matches: ask the user which board, then list its columns to find the QA-Failed one.
+
+---
 
 ## Related
 - `/pr-review` — the right tool for class 5 once you've cut the fix PR (and for genuinely re-reviewing a single PR). One branch of this skill, not the whole thing.
