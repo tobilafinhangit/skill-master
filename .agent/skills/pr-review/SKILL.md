@@ -1,7 +1,7 @@
 ---
 name: pr-review
-description: Reviews GitHub PRs against Fizzy tickets to verify an engineer delivered what was asked. Fetches PR diff + Fizzy card, runs ticket compliance + regression check, prints verdict, and optionally posts to Fizzy. Use when reviewing PRs from engineers before merging.
-version: 1.0.0
+description: Reviews GitHub PRs against Fizzy tickets to verify an engineer delivered what was asked. Fetches PR diff + Fizzy card, runs ticket compliance + regression check, prints verdict, and optionally posts to Fizzy. Single PR or bulk (review a whole "PR Open" column / all open PRs in one parallel pass). Use when reviewing PRs from engineers before merging.
+version: 1.1.0
 license: MIT
 ---
 
@@ -34,7 +34,16 @@ Every invocation begins with a fresh `gh` and Fizzy API GET — never reuse draf
 /pr-review 342                      # PR number, auto-detect card
 /pr-review 342 --card 337           # PR number + explicit Fizzy card
 /pr-review "Fix composite score"    # PR title search + auto-detect card
+
+# Bulk (see "Bulk Mode" below)
+/pr-review bulk                     # Union: "PR Open" Fizzy column + all open PRs on the integration branch
+/pr-review bulk --source column     # Only the "PR Open" column's cards
+/pr-review bulk --source open-prs   # Only open GitHub PRs targeting the integration branch
+/pr-review bulk 342 351 360         # Only this explicit set of PRs
+/pr-review bulk --author oussama    # Only open PRs by one author
 ```
+
+`bulk` reuses the single-PR review (Steps 1–3) per PR, fanned out in parallel, then aggregates. Everything below the line is the single-PR path; Bulk Mode wraps it.
 
 ---
 
@@ -284,6 +293,85 @@ PR Review Complete:
 
 ---
 
+## Bulk Mode
+
+Review many PRs in one pass. `/pr-review bulk` reviews the **union** of two sources; flags narrow it. Bulk reuses the single-PR pipeline (Steps 1–3) per PR — it does not invent a second review method.
+
+Auto-detect per repo from the **Repo Reference** below: the integration branch and the board. Match by `basename "$(git rev-parse --show-toplevel)"`; if no row matches, ask the user.
+
+### B1. Resolve the batch
+
+**Source `open-prs`** — every open PR targeting the integration branch:
+```bash
+INTEGRATION=...   # from Repo Reference (e.g. verify-deployments)
+gh pr list --state open --base "$INTEGRATION" \
+  --json number,title,headRefName,body,author --limit 100
+```
+If the repo also takes PRs straight to `main`, run a second call with `--base main` and union the results.
+
+**Source `column`** — cards sitting in the "PR Open" column:
+```bash
+source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
+BOARD_ID=...      # from Repo Reference
+# Resolve the column ID by name (the column may be "PR Open", "In Review", "Code Review")
+PR_OPEN_COL=$(curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns.json" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: skill-master/pr-review" \
+  | python3 -c "import json,sys; print(next((c['id'] for c in json.load(sys.stdin) if c['name'].lower() in ('pr open','prs open','in review','code review')), ''))")
+# Then fetch ALL cards in that column — PAGINATE (15/page, follow ?page=N until a short page).
+```
+A single unpaginated column fetch silently truncates at 15 — always page to exhaustion. For each card, find its PR by matching the **card number** against the open-PR list (branch prefix `NNN-...`, or body containing `Card #NNN` / `cards/NNN`). A card with **no matching open PR** → record it as "no PR found" (usually: not pushed yet, or already merged) and skip the review — don't fabricate one.
+
+**Narrowing:** `--source column|open-prs` (one source only), explicit numbers (`bulk 342 351` → review just those), `--author <login>` (filter the open-PR list by `author.login`).
+
+**Build the work list** — a deduped set of `{pr, card}` pairs keyed by PR number. Print it and pause before reviewing:
+```
+Bulk review — 6 PRs (integration: verify-deployments)
+  #342 → Card #337  "Fix composite score"
+  #351 → Card #344  "Withdraw application"
+  #360 → (no card)  "Bump deps"
+  ...
+  ⚠️ Card #349 in "PR Open" has no open PR — not pushed? (will skip)
+```
+If the user says stop, abort.
+
+### B2. Fan out — one subagent per PR, in parallel
+
+Launch the Step 2 review (Phase A compliance + Phase B regression) as **independent parallel subagents, one per PR** — never sequentially, never sharing context. Each subagent:
+- Receives ONLY its own PR number + resolved card number. It runs its own fresh `gh pr diff` + Fizzy GET (Review Hygiene applies per-PR).
+- Returns a structured verdict keyed to its PR: `{pr, card, verdict, compliance[], regressions[], antipatterns[], action_items[], headline}`.
+
+**Cross-PR contamination is the #1 bulk risk.** No subagent may see another PR's diff or findings, and every verdict must carry its own PR number. This is precisely the failure `Review Hygiene` guards against (#794: #712's findings posted on #740) — bulk amplifies it. **Self-check:** if a verdict's file references don't appear in that PR's own diff, discard it and re-run that one PR.
+
+**Concurrency:** cap ~6 subagents at once; queue the rest. For large batches (>15 PRs) or when you want deterministic, resumable fan-out, drive it with the **Workflow tool** (one stage per PR) instead of ad-hoc subagents.
+
+### B3. Aggregate (summary first)
+
+Print a scannable summary table, then the full single-PR detail block **only** for each ⚠️ Needs Changes (approved ones stay one line):
+```
+Bulk PR Review — 6 PRs (integration: verify-deployments)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PR     Card    Verdict           Headline
+#342   #337    ✅ Approved        3/3 reqs, additive only
+#351   #344    ⚠️ Needs Changes   1 missing req, 1 removed export
+#360   (none)  ✅ Approved        dep bump, no consumers affected
+...
+Totals: 4 approved · 2 need changes · 1 PR-less card (#349)
+```
+Don't gloss: every ⚠️ must list its action items explicitly (Review Hygiene applies to the aggregate too).
+
+### B4. Post to Fizzy (opt-in, after the summary)
+
+**Bulk never auto-posts.** After the summary, prompt:
+
+**"Post verdicts to Fizzy? [all / pick / none]"**
+- `all` → post each PR's verdict to its card (skip PR-less and card-less ones).
+- `pick` → list the PRs that have cards; user names which to post.
+- `none` → terminal-only, done.
+
+Post with the existing Step 4 HTML format — one comment per card. Print a per-card result line. A failed post warns and never aborts the batch.
+
+---
+
 ## Graceful Degradation
 
 | Failure | Behavior |
@@ -348,3 +436,15 @@ PR Review Complete:
 | Bugs | `03fl735hqcd0h1pettl8o94oo` |
 | Vetted | `03faozjl3gdngcoyzpkr4vf87` |
 | Congrats | `03f58rc5c48jorujpxqp5da5b` |
+
+## Repo Reference
+
+Per-repo auto-detect for Bulk Mode. Match by `basename "$(git rev-parse --show-toplevel)"`.
+
+| Repo directory name | Integration branch | Board |
+|---|---|---|
+| `vettedai-audition-supabase-version` | `lovable-staging` | Vetted |
+| `vetted-congrats-Flow-GENEROUS` | `verify-deployments` | Congrats |
+| `backend-restructing` | `backend-verify-deployment` | Congrats (shared) |
+
+The "PR Open" column ID is resolved by name on the board at run time (see Bulk Mode B1) — it's not hardcoded. If no row matches the current repo: ask the user for the integration branch + board.
