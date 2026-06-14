@@ -36,6 +36,7 @@ The skill auto-detects everything it needs. Run it in any repo — it just works
 | **Integration branch** (e.g. `lovable-staging`, `verify-deployments`, `main`) | 1) Read `.claude/rules/working-branch.md` or `.claude/rules/integration-branch.md` if either exists; 2) else use first of `lovable-staging` / `verify-deployments` / `main` that exists on `origin` |
 | **qa-mirror branch** | Check `origin/qa-mirror`. If missing, skip the qa-mirror sync step entirely |
 | **Supabase migrations handling** | Check if `supabase/migrations/` exists at repo root OR one level deep (e.g. `congrats/supabase/migrations/`) |
+| **Staging DB ref** (for auto-applying migrations to staging, Step 3.5) | From `qa-handoff.json` `stagingDbRef` if set; else **not auto-applied** — the skill falls back to prompting the user. Don't guess a ref. |
 | **Fizzy board + QA column** | Derived from `card.board.id` returned in Step 1 (see Board Reference at the bottom) |
 
 The pre-flight push check (Step 2) always runs — it's cheap and catches a real failure mode.
@@ -48,9 +49,12 @@ Only needed if auto-detection picks the wrong value. Any field can be overridden
 {
   "integrationBranch": "lovable-staging",
   "qaMirrorBranch": "qa-mirror",
-  "hasSupabaseMigrations": true
+  "hasSupabaseMigrations": true,
+  "stagingDbRef": "tobsmmjzmlljtyikujlr"
 }
 ```
+
+`stagingDbRef` is the Supabase project/branch ref whose database the **lovable-staging preview** points at (this repo: the persistent staging branch `tobsmmjzmlljtyikujlr`; prod is `lagvszfwsruniuinxdjb`). Set it so Step 3.5 can auto-apply the PR's migrations to the staging DB — the single biggest cause of "QA Failed for a non-code reason." If absent, Step 3.5 prompts the user instead of guessing.
 
 If the file is missing, the skill uses auto-detected values. Don't create one unless you need it.
 
@@ -101,12 +105,38 @@ gh pr diff {NUMBER} --name-only | grep "supabase/migrations/"
 ```
 
 If migrations are present:
-- **QA comment** gets a "⚠️ Migration — Verify Before Testing" block with a **verification SELECT only** (not DDL — Elvis confirms migrations ran, he doesn't run schema changes)
+- **Step 3.5 applies them to the staging DB** (below) so QA never fails for an un-applied migration
+- **QA comment** gets a "✅ Migration — Applied to Staging" block with a **confirming SELECT** (should return rows)
 - **PR description** gets raw DDL in a "⚠️ Migration — Run on Production After Merge" block (so Tobi has it visible at merge time)
 
-**Role separation is critical:**
-- Elvis (QA): runs the verification SELECT to confirm the migration was applied to staging before testing
-- Tobi (Owner): runs the raw DDL against production after QA passes and PR merges to main
+**Role separation:**
+- The skill (this step): applies the PR's migrations to the **staging DB** so the lovable-staging preview is testable
+- Elvis (QA): runs the confirming SELECT (sanity check it landed) and tests
+- Tobi (Owner): runs the raw DDL against **production** at the gated go-live (after QA passes)
+
+### Step 3.5: Apply Migrations to the Staging DB (only if migrations present)
+
+**This is the step that closes the #1 "QA Failed for a non-code reason" hole.** The skill used to only *tell QA to verify* migrations — nothing applied them to the staging DB, so every migration ticket silently depended on a human running the SQL on staging out-of-band. When skipped, QA fails on a no-brainer. Now the skill applies them.
+
+The lovable-staging **preview → staging DB**; qa-mirror → prod DB. For DB-dependent QA on the preview, the migration must be on the staging DB. Apply it here:
+
+1. **Resolve the staging ref.** Use `qa-handoff.json` `stagingDbRef`. If unset, **do not guess** — print the migration files + the apply instruction and ask the user to run them in the staging Dashboard, then continue once they confirm.
+2. **For each migration file in the PR diff** (`gh pr diff {NUMBER} --name-only | grep 'supabase/migrations/'`), read its SQL and apply it to the staging ref via the Supabase MCP `apply_migration` (project_id = `stagingDbRef`). The migration files already end with the `schema_migrations` registry insert, so re-runs are idempotent.
+3. **Staging carve-out — strip prod-only statements before applying:** a `cron.schedule(...)`/`cron.unschedule(...)` whose body posts to a **prod** `/functions/v1/<slug>` URL must NOT run on staging — the staging cron would fire against the prod edge fn and 404 every tick (the `deliver-newsletters` case, 2026-06-14). Apply the rest of the migration (tables, functions, permissions, RLS) and skip just the prod-URL cron block, noting it in the QA comment as "cron is prod-only at go-live." Everything else (additive DDL, new permission rows, RLS on new tables) applies safely to staging.
+4. **Verify before proceeding:** run the confirming SELECT (the one going into the QA comment). If it returns 0 rows, STOP — the apply didn't take; surface the error, don't hand off a card that will just fail again.
+
+```
+Migrations in this PR → applying to staging DB (stagingDbRef) via MCP apply_migration:
+  20260614160000_newsletter_foundation.sql        → applied ✅
+  20260614160100_newsletter_drain_cron.sql        → applied (cron.schedule skipped: prod-URL, prod-only) ✅
+  20260614170000_newsletter_admin_permission.sql  → applied ✅
+Verify SELECT → 2 tables, 6 funcs, 1 permission present. Proceeding to QA comment.
+```
+
+**Guardrails:**
+- **Staging only.** Never apply to the prod ref here — prod is the gated human go-live (kept in the PR description + go-live checklist). Applying additive migrations to the non-prod staging DB is safe and reversible.
+- This does NOT replace the `migration-and-writer-deploy-atomically` rule for prod: if the PR couples a constraint/domain migration with an edge fn that writes the column, the *prod* deploy still pairs them. Step 3.5 is purely about unblocking *staging QA*.
+- If `apply_migration` errors (e.g. a non-additive migration that conflicts with existing staging state), surface it and ask — don't force.
 
 ### Step 4: Update PR Description if Migrations Present
 
@@ -133,21 +163,23 @@ Do NOT use \`supabase db push\` — migration files may have been edited after f
 Post an HTML comment to the Fizzy card. Must include:
 
 1. **Summary table** — one row per change (what, why)
-2. **Migration check** — verification SELECT block (only if migrations present)
+2. **Migration check** — "applied to staging" confirming SELECT block (only if migrations present; the skill already applied them in Step 3.5)
 3. **Code verification** — CLI commands (tsc, lint)
 4. **UI testing steps** — step-by-step per change, specific viewports/flows
 5. **Regression checks** — checklist of related flows that must not break
 6. **What was NOT changed** — guardrails / files explicitly untouched
 
-**Migration verification block (when applicable):**
+**Migration block (when applicable) — the skill already applied to staging in Step 3.5, so this CONFIRMS rather than asks:**
 
 ```html
-<h3>⚠️ Migration — Verify Before Testing</h3>
-<p>Run this SELECT in the <strong>staging</strong> Supabase SQL editor to confirm the migration was applied. If it returns 0 rows, ping Tobi.</p>
+<h3>✅ Migration — Applied to Staging</h3>
+<p>This PR's migration(s) were applied to the staging DB during handoff. Sanity-check (should return rows — if 0, ping Tobi, it means the apply didn't take):</p>
 <pre>SELECT column_name FROM information_schema.columns
 WHERE table_name = '{table}' AND column_name = '{column}';</pre>
-<p><strong>Do not run DDL here</strong> — schema changes are Tobi's responsibility at merge time.</p>
+<p><strong>You don't need to run any DDL.</strong> Production apply is Tobi's gated go-live step after QA passes.</p>
 ```
+
+If `stagingDbRef` was unset and Step 3.5 had to prompt the user instead of auto-applying, keep the older "⚠️ Verify Before Testing / if 0 rows ping Tobi" wording — only claim "applied" when the skill actually applied + verified it.
 
 **Formatting rules:**
 - HTML only (Fizzy renders HTML, not Markdown)
