@@ -206,7 +206,10 @@ Two correct ways:
   grep -i x-total-count /tmp/h.txt   # exact open-card count for that column (matches the UI badge)
   ```
 - **Whole-board (board-cleanup / cross-column sweeps):** walk `/cards.json` and filter client-side
-  on `card['board']['name']` (exact names in the Team Boards table above).
+  on `card['board']['name']` (exact names in the Team Boards table above). Match by **exact equality,
+  never `startswith`** — sibling boards share a prefix (`Vetted (Recruiter-Facing) | Engineering`,
+  `Vetted Onboarding Tool`, `VettedAI GTM` all begin with `Vetted`), so a prefix match silently merges
+  multiple boards and inflates every count. Print the distinct matched board names to sanity-check.
 
 **2. Pagination: follow `Link: rel="next"`; page size ESCALATES (15 → 30 → 50 …).** Never hardcode
 "15/page" or stop on the first page shorter than 15. Loop until the `Link: rel="next"` header is
@@ -253,8 +256,11 @@ curl -s "https://app.fizzy.do/6102589/cards.json?tag_ids[]={TAG_ID}" \
 ```
 
 ### Get Card by Number
+
+> **`.json` is mandatory on EVERY card/resource endpoint — reads AND writes.** `GET /cards/{N}`, `PUT /cards/{N}`, `POST /cards/{N}/comments`, `/assignments`, `/taggings` etc. all require the `.json` suffix. The bare path is served as a session-authenticated HTML route and rejects the bearer token (GET/PUT → `401 "HTTP Token: Access denied."`; action POSTs → `422`). When any Fizzy call 401/422s for no obvious reason, the first thing to check is a missing `.json`.
+
 ```bash
-curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}" \
+curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
@@ -272,12 +278,16 @@ curl -s -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards" \
 
 ### Update Card
 For title/description/general field updates. **Does NOT accept `column_id`** — use the triage endpoint below to move cards between columns.
+
+**The URL MUST carry the `.json` suffix.** Bare `PUT /cards/{NUMBER}` returns `401 "HTTP Token: Access denied."` — the bearer token is rejected because the bare path is served as a session-authenticated HTML route (same trap as bare-suffix GETs). `PUT /cards/{NUMBER}.json` returns `200`. (Verified 2026-06-18.)
+
+**PUT replaces the ENTIRE card** — any field you omit is wiped to empty. Always GET the card first and resend every field you want to keep (e.g. include the existing `title` when you only mean to change `description`).
 ```bash
-curl -s -X PUT "https://app.fizzy.do/6102589/cards/{NUMBER}" \
+curl -s -X PUT "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  -d '{"card": {"title": "Updated title"}}'
+  -d '{"card": {"title": "Existing title (resend!)", "description": "<p>New HTML body</p>"}}'
 ```
 
 ### Move Card to Column
@@ -300,17 +310,17 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/closure.json" \
 
 ### Add Comment
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments" \
+curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  -d '{"comment": {"body": "<p>Comment text</p>"}}'
+  -d '{"body": "<p>Comment text (HTML — markdown renders as a blob)</p>"}'
 ```
 
 ### Assign User
 Note: POST toggles assignment (assign if unassigned, unassign if assigned). Response is 204 No Content.
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/assignments" \
+curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/assignments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"assignee_id": "USER_ID"}'
@@ -318,7 +328,7 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/assignments" \
 
 ### Add Tags
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/taggings" \
+curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/taggings.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"tag_ids": ["TAG_ID"]}'
