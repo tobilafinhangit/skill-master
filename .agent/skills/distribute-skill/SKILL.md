@@ -63,6 +63,35 @@ These repos have `submodules/skill-master` as a git submodule:
 
 When a new repo is added to the ecosystem, add it to this table.
 
+### How consumers pick up updates (the submodule is PINNED)
+
+Pushing the canonical (`skill-master` main) does **NOT** auto-propagate. Each consumer repo pins a
+specific submodule commit and keeps it until someone *deliberately* bumps — there is no
+notification. So the **editor** owns propagation (run this skill's `sync`/`propagate` mode after any
+skill edit); consumers don't discover it on their own.
+
+- A consumer picks up the latest manually with `git submodule update --remote submodules/skill-master`,
+  then commits the pointer bump — but **only on an integration branch** (see below).
+- Diagnostic for "is a repo stale?": `git ls-tree HEAD submodules/skill-master` (pinned commit) vs
+  `git -C submodules/skill-master rev-parse origin/main`.
+- `.agent/skills/<skill>` must be a **symlink** into `submodules/skill-master/.agent/skills/<skill>`,
+  not a real-directory copy — a copy silently shadows the canonical and drifts. Fix:
+  `rm -rf <skill> && ln -s ../../submodules/skill-master/.agent/skills/<skill> <skill>`.
+
+### Pointer commits are BRANCH-AWARE — never pollute a feature PR
+
+`git submodule update --remote` updates the working tree but leaves the pointer **uncommitted**.
+Whether to commit it depends on the consumer's current branch:
+
+- **On an integration branch** (`main`, `lovable-staging`, `verify-deployments`,
+  `backend-verify-deployment`): commit + push the pointer bump (set per-repo author identity first;
+  the canonical is already pushed, so submodule-first ordering is satisfied).
+- **On a feature branch** (`feat/*`, `fix/*`, anything mid-work): do **NOT** commit the pointer — it
+  would land inside that branch's PR diff. Update the working tree, then **report** that the pointer
+  is updated-but-uncommitted and tell the user to bump it on the repo's integration branch (or via
+  that repo's normal feature→integration flow; some repos, e.g. Congrats, require a PR, not a direct
+  commit — see `sister-repo-branch-conventions`).
+
 ---
 
 ## Mode: sync
@@ -129,6 +158,8 @@ REPOS=(
   "/Users/USER/code/repos/nts-opportunity-hour-digest"
 )
 
+INTEGRATION_BRANCHES="main lovable-staging verify-deployments backend-verify-deployment qa-mirror"
+
 for repo in "${REPOS[@]}"; do
   echo "=== $(basename $repo) ==="
   cd "$repo"
@@ -136,12 +167,31 @@ for repo in "${REPOS[@]}"; do
   # Reset submodule if it has local changes (they've been synced already)
   cd submodules/skill-master && git checkout -- . 2>/dev/null; cd ../..
 
-  # Update submodule to latest
+  # Update submodule working tree to latest skill-master main
   git submodule update --remote submodules/skill-master
+
+  # Persist the pointer ONLY on an integration branch — never pollute a feature PR.
+  branch=$(git rev-parse --abbrev-ref HEAD)
+  if git diff --quiet submodules/skill-master; then
+    echo "  pointer already current — nothing to commit"
+  elif echo " $INTEGRATION_BRANCHES " | grep -q " $branch "; then
+    git add submodules/skill-master
+    git -c user.email="tobi@venturefor.africa" -c user.name="tobilafinhangit" \
+      commit -q -m "chore(skills): bump skill-master submodule"
+    git push    # confirm with the user before pushing shared branches
+    echo "  pointer committed + pushed on integration branch '$branch'"
+  else
+    echo "  ⚠️ working tree updated but pointer NOT committed (on feature branch '$branch')."
+    echo "     Bump it on this repo's integration branch — for PR-gated repos (e.g. Congrats),"
+    echo "     via the normal feature→integration flow. See sister-repo-branch-conventions."
+  fi
 done
 ```
 
-If a repo fails (dirty submodule, etc.), report the error but continue with the rest.
+If a repo fails (dirty submodule, etc.), report the error but continue with the rest. **Never**
+commit a pointer bump onto a feature branch — it lands inside that branch's PR. On a feature branch,
+leave the working-tree update and report the uncommitted pointer for the user to persist on an
+integration branch.
 
 #### Step 5: Report results
 
@@ -239,3 +289,6 @@ fi
 - **Always commit with a descriptive message** — the skill name + what changed
 - **The consuming repos table must be kept up to date** — when a new repo adds the submodule, add it here
 - **Local-only skills** (in `.claude/skills/` but not in skill-master) are left untouched — sync only operates on skills that exist in both places
+- **The submodule is pinned — updates do NOT auto-arrive.** Consumers stay on their pinned commit until deliberately bumped; the editor owns propagation (see "How consumers pick up updates" above)
+- **Pointer commits are branch-aware** — commit + push the bump only on an integration branch; on a feature branch, leave it uncommitted and report it (committing would pollute that branch's PR)
+- **Skills must be symlinks, not copies** — a real-directory copy under `.agent/skills/` silently shadows the canonical and drifts; convert it to a symlink into the submodule
