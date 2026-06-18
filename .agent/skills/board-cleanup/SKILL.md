@@ -50,7 +50,7 @@ BOARD="<board-id>"
 curl -s "https://app.fizzy.do/6102589/boards/$BOARD/columns.json" "${H[@]}"
 ```
 
-Pull every card, paginated. **CRITICAL GOTCHA:** `cards.json?board_id=X` requires the `.json` suffix AND **the `board_id` filter is silently ignored** — the endpoint returns cards from *all* boards. You MUST filter client-side by `board.name`. Page size **escalates** (15→30→50…), so paginate by following `Link: rel="next"` — never stop on the first <15 page. (Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.)
+Pull every card, paginated. **CRITICAL GOTCHA:** `cards.json?board_id=X` requires the `.json` suffix AND **the `board_id` filter is silently ignored** — the endpoint returns cards from *all* boards. You MUST filter client-side by **EXACT** `board.name` equality — **never `startswith`**: sibling boards share a prefix (e.g. `Vetted (Recruiter-Facing) | Engineering`, `Vetted Onboarding Tool`, and `VettedAI GTM` all start with `Vetted`, so `startswith('Vetted')` silently conflates all three and inflates every count). Page size **escalates** (15→30→50…), so paginate by following `Link: rel="next"` — never stop on the first <15 page. (Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.)
 
 ```bash
 url="https://app.fizzy.do/6102589/cards.json?page=1"; > /tmp/bc_cards.jsonl
@@ -59,7 +59,9 @@ while [ -n "$url" ]; do
   echo "$body" | python3 -c "import sys,json;[print(json.dumps(c)) for c in json.load(sys.stdin)]" >> /tmp/bc_cards.jsonl
   url=$(grep -i '^link:' /tmp/bc_h.txt | sed -n 's/.*<\([^>]*\)>; *rel="next".*/\1/p')
 done
-# Then: rows = [c for c in jsonl if c['board']['name'].startswith('<BoardName>') and not c['closed']]
+# Then: rows = [c for c in jsonl if c['board']['name'] == '<exact BoardName>' and not c['closed']]
+#   EXACT == only. startswith() conflates sibling "Vetted *" boards — verify your count by also
+#   printing the distinct board names you matched, before trusting any total.
 ```
 
 Useful fields per card: `number`, `title`, `closed`, `postponed`, `column` (`null` = floating/"Maybe" pile), `assignees[].name`, `tags`, `description_html`. Single-card detail needs `.json` too: `/cards/{n}.json`.
