@@ -66,8 +66,8 @@ Only needed if auto-detection picks the wrong value:
 ```bash
 git fetch origin --quiet
 
-# Fetch ALL cards in the column. Fizzy paginates at 15/page and returns ONLY
-# page 1 unless you follow the `Link: rel="next"` header / pass ?page=N. A column
+# Fetch ALL cards in the column. Fizzy paginates (first page 15, then escalating 30/50…) and
+# returns ONLY page 1 unless you follow the `Link: rel="next"` header / pass ?page=N. A column
 # with >15 cards is otherwise SILENTLY TRUNCATED to its first page — this masked a
 # 44-card Merge-to-Prod backlog as 15 and is why "I still see cards" recurred.
 # ALWAYS paginate to exhaustion; never trust a single unpaginated fetch.
@@ -307,7 +307,7 @@ Next: after PR merges, run `/merge-to-prod --finalize <NNN>` to close the shippi
 - Token lives in `.env.local` as `$FIZZY_API_TOKEN`. Never hardcode.
 - Comment body is HTML — markdown is ignored and renders as a blob
 - Card body field is `description`, comment body field is `body` (they differ)
-- **Column listings paginate at 15/page.** `GET .../cards.json` returns only page 1 unless you follow `Link: rel="next"` / pass `?page=N`. The response carries `X-Total-Count`. Any column listing MUST loop pages to exhaustion and assert the fetched count equals `X-Total-Count` — a single fetch silently truncates a >15-card column to its first page (the cause of a 44-card backlog reading as 15).
+- **Column listings paginate with an escalating page size (15→30→50…).** `GET .../cards.json` returns only the first page unless you follow `Link: rel="next"` / pass `?page=N`. The response carries `X-Total-Count`. Any column listing MUST loop pages to exhaustion and assert the fetched count equals `X-Total-Count` — never stop on the first <15 page; a single fetch silently truncates a >15-card column (the cause of a 44-card backlog reading as 15). Use the per-column endpoint — `cards.json?board_id=` is silently ignored. Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.
 - **Column membership ≠ this repo.** A board's Merge-to-Prod column can hold cards whose work ships via sister repos (Congrats / backend). Detect repo via each card's QA-signoff branch name (`lovable-staging`=Vetted, `verify-deployments`=Congrats, `backend-verify-deployment`=backend) before classifying; never judge a sister-repo card against this repo's git, and never close it from here.
 - **Title-verify before trusting a PR number.** Card numbers and PR numbers collide across repos and a comment often cites *another* ticket's PR. Confirm the candidate PR's title names the ticket (`fix(#N)`/`Fizzy #N`) before using its merge commit as proof-of-ship.
 
