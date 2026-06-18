@@ -188,14 +188,67 @@ curl -s -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns" \
   -d '{"column": {"name": "In Progress", "color": "var(--color-card-2)"}}'
 ```
 
-### List Cards (with filters)
-```bash
-# All cards on a board
-curl -s "https://app.fizzy.do/6102589/cards?board_id={BOARD_ID}" \
-  -H "Authorization: Bearer $FIZZY_API_TOKEN"
+### Reading a Board (cards + columns) — AUTHORITATIVE
 
-# Filter by tag
-curl -s "https://app.fizzy.do/6102589/cards?board_id={BOARD_ID}&tag_ids[]={TAG_ID}" \
+> **This is the single source of truth for reading a board.** `merge-to-prod`, `pr-review`,
+> `qa-failed-triage`, `board-cleanup`, and `qa-handoff` all defer here. Four gotchas, every one
+> load-bearing — verified against the live API + UI (2026-06).
+
+**1. `board_id` is SILENTLY IGNORED.** `GET /cards.json?board_id={B}` returns cards from *every*
+board in the workspace (10 boards, ~440 cards), not the one you asked for. No query param scopes it.
+Two correct ways:
+
+- **Per-column (preferred for column-targeted reads — qa-handoff/pr-review/qa-failed-triage/merge-to-prod):**
+  properly scoped, and the response carries an exact `X-Total-Count`.
+  ```bash
+  curl -s "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns/{COL_ID}/cards.json" \
+    -H "Authorization: Bearer $FIZZY_API_TOKEN" -D /tmp/h.txt -o /tmp/cards.json
+  grep -i x-total-count /tmp/h.txt   # exact open-card count for that column (matches the UI badge)
+  ```
+- **Whole-board (board-cleanup / cross-column sweeps):** walk `/cards.json` and filter client-side
+  on `card['board']['name']` (exact names in the Team Boards table above).
+
+**2. Pagination: follow `Link: rel="next"`; page size ESCALATES (15 → 30 → 50 …).** Never hardcode
+"15/page" or stop on the first page shorter than 15. Loop until the `Link: rel="next"` header is
+absent, then assert fetched count == `X-Total-Count`. A single fetch silently truncates a 44-card
+column to its first page.
+```bash
+url="https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns/{COL_ID}/cards.json"
+: > /tmp/col.jsonl
+while [ -n "$url" ]; do
+  body=$(curl -s "$url" -H "Authorization: Bearer $FIZZY_API_TOKEN" -D /tmp/h.txt)
+  echo "$body" | python3 -c "import sys,json;[print(json.dumps(c)) for c in json.load(sys.stdin)]" >> /tmp/col.jsonl
+  url=$(grep -i '^link:' /tmp/h.txt | sed -n 's/.*<\([^>]*\)>; *rel="next".*/\1/p')
+done
+total=$(grep -i x-total-count /tmp/h.txt | tr -d '\r' | awk '{print $2}')
+got=$(wc -l < /tmp/col.jsonl)
+[ "$got" = "$total" ] || echo "⚠️ TRUNCATED: got $got of $total"
+```
+
+**3. The three built-in lifecycle lanes are NOT columns — and two are invisible to the list API.**
+`columns.json` returns only the board's *custom* columns. The built-in lanes are card flags:
+
+| UI lane | Card field | Listable via API? |
+|---|---|---|
+| **Maybe?** | `column == null` | ✅ yes — returned as open cards with no column |
+| **Not Now** | `postponed == true` | ❌ **NO list endpoint returns these** |
+| **Done** | `closed == true` | ❌ **NO list endpoint returns these** |
+
+No query param (`closed=true`, `status=closed`, `scope=done`, `filter=not_now`, …) and no
+reserved-slug path (`/columns/done/...`, `/closures.json`, …) surfaces Not Now or Done — all
+ignored or 404. To read a specific Not Now/Done card you must already know its number:
+`GET /cards/{N}.json` (its `postponed`/`closed` flag will be set). The UI is the only place those
+two counts are visible. Transition to Done = `POST /cards/{N}/closure.json` (see Close Card).
+
+**4. Auto-postpone makes idle cards VANISH.** Boards carry `auto_postpone_period_in_days`
+(`GET /boards/{B}.json` — e.g. 30 on Congrats). A card idle that long auto-moves to **Not Now**,
+dropping out of BOTH the per-column endpoint AND the list API. A long-idle card that "disappeared"
+from a column was likely auto-postponed, not completed — never infer "shipped" from its absence.
+
+### List Cards by tag (whole-workspace)
+```bash
+# board_id is ignored (gotcha 1); the tag filter DOES work. Still filter board.name client-side.
+curl -s "https://app.fizzy.do/6102589/cards.json?tag_ids[]={TAG_ID}" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
@@ -237,9 +290,11 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/triage.json" \
   -d '{"column_id": "COL_ID"}'
 ```
 
-### Close Card
+### Close Card (→ Done lane)
+"Done" is card closure, not a column move. Returns `204 No Content`. The card leaves its column
+and becomes invisible to the list API (gotcha 3 above).
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/closure" \
+curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/closure.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
@@ -283,13 +338,16 @@ curl -s "https://app.fizzy.do/6102589/users" \
 
 ## Pagination
 
-List endpoints return paginated results. Check the `Link` response header for the next page:
+List endpoints (cards AND comments) paginate. **Page size escalates (15 → 30 → 50 …), so never
+hardcode a per-page size or stop on the first short page.** Follow the `Link` response header until
+`rel="next"` is absent, then assert the fetched count == `X-Total-Count`:
 
 ```
 Link: <https://app.fizzy.do/6102589/cards?page=2>; rel="next"
 ```
 
-Follow `rel="next"` links to get all results.
+See **Reading a Board (cards + columns) — AUTHORITATIVE** above for the full paginator and the
+`board_id`-ignored / Not-Now-&-Done-invisible / auto-postpone gotchas.
 
 ## Caching
 

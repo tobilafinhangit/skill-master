@@ -50,20 +50,21 @@ BOARD="<board-id>"
 curl -s "https://app.fizzy.do/6102589/boards/$BOARD/columns.json" "${H[@]}"
 ```
 
-Pull every card, paginated. **CRITICAL GOTCHA:** `cards.json?board_id=X` requires the `.json` suffix AND **the `board_id` filter is silently ignored** — the endpoint returns cards from *all* boards. You MUST filter client-side by `board.name`.
+Pull every card, paginated. **CRITICAL GOTCHA:** `cards.json?board_id=X` requires the `.json` suffix AND **the `board_id` filter is silently ignored** — the endpoint returns cards from *all* boards. You MUST filter client-side by `board.name`. Page size **escalates** (15→30→50…), so paginate by following `Link: rel="next"` — never stop on the first <15 page. (Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.)
 
 ```bash
-page=1; > /tmp/bc_cards.jsonl
-while :; do
-  body=$(curl -s "https://app.fizzy.do/6102589/cards.json?board_id=$BOARD&page=$page" "${H[@]}")
-  n=$(echo "$body" | python3 -c "import sys,json;print(len(json.load(sys.stdin)))")
+url="https://app.fizzy.do/6102589/cards.json?page=1"; > /tmp/bc_cards.jsonl
+while [ -n "$url" ]; do
+  body=$(curl -s "$url" "${H[@]}" -D /tmp/bc_h.txt)
   echo "$body" | python3 -c "import sys,json;[print(json.dumps(c)) for c in json.load(sys.stdin)]" >> /tmp/bc_cards.jsonl
-  [ "$n" -lt 15 ] && break; page=$((page+1)); [ "$page" -gt 25 ] && break
+  url=$(grep -i '^link:' /tmp/bc_h.txt | sed -n 's/.*<\([^>]*\)>; *rel="next".*/\1/p')
 done
 # Then: rows = [c for c in jsonl if c['board']['name'].startswith('<BoardName>') and not c['closed']]
 ```
 
-Useful fields per card: `number`, `title`, `closed`, `column` (`null` = floating/"Maybe" pile), `assignees[].name`, `tags`, `description_html`. Single-card detail needs `.json` too: `/cards/{n}.json`.
+Useful fields per card: `number`, `title`, `closed`, `postponed`, `column` (`null` = floating/"Maybe" pile), `assignees[].name`, `tags`, `description_html`. Single-card detail needs `.json` too: `/cards/{n}.json`.
+
+> **Blind spots — the walk only returns OPEN, non-postponed cards.** The **Not Now** (`postponed`) and **Done** (`closed`) lifecycle lanes are NOT returned by *any* list endpoint, so your map covers every active/floating card but is blind to those two — only the Fizzy UI shows their counts (often large: e.g. Congrats Not Now = 38, Done = 99+). Say so explicitly in the map rather than implying the board is empty there. The `not c['closed']` filter above is just belt-and-suspenders; closed cards never appear anyway. Also note boards auto-postpone idle cards (`auto_postpone_period_in_days`, ~30d) into Not Now — a long-idle card that vanished from a column was likely postponed, not shipped.
 
 ## Phase 2 — Map
 

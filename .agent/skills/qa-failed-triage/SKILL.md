@@ -42,7 +42,7 @@ A "QA Failed" card is rarely "the engineer's code is wrong." Across real sweeps,
 
 ## Phase 1 — Enumerate + read everything
 
-1. Pull every card in the QA-Failed column. **Paginate** (`?page=N`, 15/page) — a single fetch silently truncates.
+1. Pull every card in the QA-Failed column **via the per-column endpoint** (`/boards/{B}/columns/{C}/cards.json` — `cards.json?board_id=` is silently ignored). **Paginate**: follow `Link: rel="next"` (page size escalates 15→30→50; don't stop on the first <15 page) and assert fetched count == `X-Total-Count`. A single fetch silently truncates. Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.
 2. For each card, fetch the full description **and every comment** (comments paginate too — follow `Link: rel="next"`). Render the QA verdict comments especially — the *most recent* `⛔/❌` comment is the failure reason you must explain or refute.
 3. Read the comment history end-to-end: who reviewed, what passed before, when it last passed. A card that PASSED in May and re-failed in June is almost never a fresh code regression — suspect class 2/3.
 

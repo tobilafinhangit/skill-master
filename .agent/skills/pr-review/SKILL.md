@@ -317,9 +317,13 @@ BOARD_ID=...      # from Repo Reference
 PR_OPEN_COL=$(curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: skill-master/pr-review" \
   | python3 -c "import json,sys; print(next((c['id'] for c in json.load(sys.stdin) if c['name'].lower() in ('pr open','prs open','in review','code review')), ''))")
-# Then fetch ALL cards in that column — PAGINATE (15/page, follow ?page=N until a short page).
+# Then fetch ALL cards in that column — PAGINATE. Follow `Link: rel="next"` (page size escalates
+# 15→30→50; do NOT stop on the first <15 page) and assert fetched count == X-Total-Count.
+# Full paginator + scoping rules: see "Reading a Board — AUTHORITATIVE" in /fizzy.
 ```
-A single unpaginated column fetch silently truncates at 15 — always page to exhaustion. For each card, find its PR by matching the **card number** against the open-PR list (branch prefix `NNN-...`, or body containing `Card #NNN` / `cards/NNN`). A card with **no matching open PR** → record it as "no PR found" (usually: not pushed yet, or already merged) and skip the review — don't fabricate one.
+A single unpaginated column fetch silently truncates to its first page — always page to exhaustion
+and check the `X-Total-Count` header (`cards.json?board_id=` is silently ignored; use the per-column
+endpoint above). For each card, find its PR by matching the **card number** against the open-PR list (branch prefix `NNN-...`, or body containing `Card #NNN` / `cards/NNN`). A card with **no matching open PR** → record it as "no PR found" (usually: not pushed yet, or already merged) and skip the review — don't fabricate one.
 
 **Narrowing:** `--source column|open-prs` (one source only), explicit numbers (`bulk 342 351` → review just those), `--author <login>` (filter the open-PR list by `author.login`).
 
