@@ -55,6 +55,9 @@ license: MIT
 ```
 
 ## 3. Writing Principles (The "Claude Way")
+
+> Quality bar — leading words, the information hierarchy, and the failure modes (sediment, sprawl, no-op, duplication) for editing/pruning a skill — lives in `/writing-great-skills`. This section is the minimum; that skill is the reference.
+
 When writing the body of `SKILL.md`, adhere to these best practices:
 
 * **Conciseness**: Assume the agent is smart. Do not explain what a PDF or a Git repo is. Focus only on the unique logic of the skill.
