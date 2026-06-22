@@ -267,13 +267,25 @@ curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
 ### Create Card
 **Important:** Payload must be wrapped in a `card` key (Rails convention). Always include `Accept: application/json`.
 
-Place the card in a specific column by passing `column_id` inside the `card` payload — do NOT use `/boards/{BOARD_ID}/columns/{COL_ID}/cards` (that endpoint returns 404 for POST).
+Do NOT use `/boards/{BOARD_ID}/columns/{COL_ID}/cards` (that endpoint returns 404 for POST).
+
+**`column_id` in the create payload is SILENTLY IGNORED** — the card lands in the **Maybe?** lane (`column == null`) no matter what you pass. To place it in a column you must **create-then-triage**: POST the card, then `POST /cards/{N}/triage.json` with `{column_id}` (the same endpoint used to move an existing card). Verified 3× 2026-06-22 (#1575/#1576/#1578 all created with `column_id` in the payload, all landed column-less).
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards" \
+# 1. Create (column_id omitted — it would be ignored anyway); grab N from the Location header
+curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  -d '{"card": {"title": "Card title", "description": "<p>Description here</p>", "column_id": "COL_ID"}}'
+  -d '{"card": {"title": "Card title", "description": "<p>Description here</p>"}}'
+# Location: /6102589/cards/{N}.json
+
+# 2. Triage it into the target column
+curl -s -X POST "https://app.fizzy.do/6102589/cards/{N}/triage.json" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{"column_id": "COL_ID"}'
+# 204 No Content
 ```
 
 ### Update Card
