@@ -1,7 +1,7 @@
 ---
 name: qa-failed-triage
 description: Sweeps a board's "QA Failed" column, and for each card classifies WHY it failed, verifies that classification against ground truth (git ancestry, deployed-vs-prod, DB state, project rules), then routes it to the right remedy. Most QA-Failed cards are NOT "the code is wrong, re-review it" — they're stale checkouts, environment drift, deploy gaps, or rule-misreads. Use when a batch of cards is stuck in QA Failed and you want to clear them efficiently as the senior engineer.
-version: 1.0.0
+version: 1.1.0
 license: MIT
 ---
 
@@ -40,15 +40,30 @@ A "QA Failed" card is rarely "the engineer's code is wrong." Across real sweeps,
 - Fizzy creds: `source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null` → `$FIZZY_API_TOKEN`. All Fizzy mechanics (`.json` suffix, `triage.json` to move, `assignee_id`, HTML comment bodies, pagination) per `/fizzy` and `.claude/rules/fizzy-api-patterns.md` — don't re-derive them.
 - Phase 3 ground-truth checks are repo-relative: resolve the **integration branch** per repo (`.claude/rules/working-branch.md` / `integration-branch.md`, else the first of `lovable-staging` / `verify-deployments` / `backend-verify-deployment` on `origin`) and cite *that repo's* `.claude/rules/`. The rule filenames named in later phases are Vetted/Congrats examples — substitute the equivalents for whatever repo you're in.
 
-## Phase 1 — Enumerate + read everything
+## Batch discipline — keep the parent context small (read before sweeping)
+
+QA-Failed cards are long: full descriptions + paginated comment threads + the per-card ground-truth dumps (git output, prod query results, edge-fn bodies). If the **parent** (this) context reads all of that for every card, the window fills and the sweep dies mid-column — worse on big or wordy columns, which is exactly when you reached for this skill. Two rules make a sweep survive any column size:
+
+1. **Heavy text lives only in per-card subagents, never in the parent.** The parent holds a lean work-list and the compact verdict each child returns — never a full card body, a full comment thread, a diff, or a raw query result. Text that enters the parent context is billed every turn for the rest of the sweep and cannot be evicted; that is the cost you are controlling.
+2. **Process in waves, checkpoint to a file.** Run ~6 cards at a time (one subagent each). After each wave, append the compact verdicts to a scratchpad file (the session scratchpad dir, e.g. `qa-triage-<board>.jsonl`) and drop them from working memory — the **file** is the accumulator, not the context. For columns over ~15 cards, or when you want a deterministic, resumable sweep, drive the fan-out with the **Workflow tool** (one pipeline item per card, `schema:` on the agent to force the compact return) instead of ad-hoc subagents.
+
+Each per-card child returns ONLY this shape (≤~250 tokens — no prose essays, no pasted diffs/queries):
+`{ card, class, cause_one_line, evidence_refs[], remedy, needs_human }`
+`evidence_refs` are **pointers** (a SHA, a `file:line`, a row count, a rule filename) — not the content.
+
+## Phase 1 — Enumerate (lean work-list only)
 
 1. Pull every card in the QA-Failed column **via the per-column endpoint** (`/boards/{B}/columns/{C}/cards.json` — `cards.json?board_id=` is silently ignored). **Paginate**: follow `Link: rel="next"` (page size escalates 15→30→50; don't stop on the first <15 page) and assert fetched count == `X-Total-Count`. A single fetch silently truncates. Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.
-2. For each card, fetch the full description **and every comment** (comments paginate too — follow `Link: rel="next"`). Render the QA verdict comments especially — the *most recent* `⛔/❌` comment is the failure reason you must explain or refute.
-3. Read the comment history end-to-end: who reviewed, what passed before, when it last passed. A card that PASSED in May and re-failed in June is almost never a fresh code regression — suspect class 2/3.
+2. Build a **lean work-list** — one row per card with only `{card_number, title, assignee, latest_verdict_line}`, where `latest_verdict_line` is the first sentence of the most-recent `⛔/❌` comment (grep it out; don't pull the thread). **Do not** read full descriptions or full comment histories here — that is the per-card child's job (Phase 2), in a disposable context. Pulling them into this context for every card is the #1 cause of a sweep dying mid-column (see Batch discipline).
+3. Print the work-list and pause for the user's go-ahead before triaging.
 
-## Phase 2 — Classify each card
+> The full description + end-to-end comment history (who reviewed, what passed before, when it last passed — a card that PASSED in May and re-failed in June is almost never a fresh regression, suspect class 2/3) still matter — but they are read **inside each card's subagent**, not here.
 
-For each card, assign a provisional class (1-6 above) from the comments. Tells:
+## Phase 2 — Triage each card in its own subagent
+
+Fan out per **Batch discipline** above: one subagent per card (waves of ~6, or the Workflow tool for big columns). Hand each child only its `card_number` + the class definitions and checks below; it fetches its own card body + comments + ground truth in a disposable context and returns the compact verdict. The parent never sees the raw text.
+
+**Step 2a — Classify** (inside the child). Fetch the card's full description and every comment (paginate, `Link: rel="next"`), read the history end-to-end, then assign a provisional class (1-6 above). Tells:
 - "Files don't exist on staging" / "not merged" but GitHub says MERGED → class 1 or 4 (verify which).
 - "Environment issue" / "price ID invalid" / "candidate linkage" → class 2.
 - "Regression: <blocking behavior>" on a billing/unlock/cost action → class 3 (check the rules).
@@ -57,7 +72,7 @@ For each card, assign a provisional class (1-6 above) from the comments. Tells:
 
 ## Phase 3 — Verify the classification (this is the product)
 
-Provisional class is a hypothesis. Confirm or refute it with ground truth **before** routing. Run only the checks relevant to the provisional class; parallelize across cards with sub-agents when the batch is large.
+**Step 2b — Verify** (same child as 2a). The provisional class is a hypothesis. Confirm or refute it with ground truth **before** routing. Run only the checks relevant to the provisional class. Fan-out across cards is handled by **Batch discipline** — never run these checks serially in the parent. The child then returns its compact verdict (`{card, class, cause_one_line, evidence_refs[], remedy, needs_human}`); keep raw git / DB / edge-fn output **out** of the return — cite a SHA, a row count, a `file:line`, a rule filename, not the dump.
 
 - **Class 1/4 (stale-checkout vs dropped-merge):**
   - `gh pr view <n> --json state,mergeCommit` → get the merge commit SHA.
@@ -84,7 +99,7 @@ Provisional class is a hypothesis. Confirm or refute it with ground truth **befo
 
 ## Phase 5 — Report + act
 
-- Produce a **plain-English report**: per-card class + real cause + remedy + who/what's needed, then the systemic patterns (the pipeline leaks that produced the false-fails — stale-checkout QA, staging env parity, rule literacy, deploy-at-handoff).
+- Produce a **plain-English report** from the checkpointed verdicts: per-card class + real cause + remedy + who/what's needed, then the systemic patterns (the pipeline leaks that produced the false-fails — stale-checkout QA, staging env parity, rule literacy, deploy-at-handoff).
 - **Shared-state actions need authorization.** Posting verdicts to Fizzy, moving cards, merging, applying migrations, deploying — confirm with the user before the first one (then it's authorized for the rest of the session). Don't close cards yourself unless told; "verify on prod and close" still needs the prod verification to actually happen.
 - Fizzy comments: HTML, attribute as a senior review, lead with the verdict (false-fail / correct-by-rule / real bug + PR). Don't re-assign an already-assigned person (the assignment API toggles → would unassign).
 
