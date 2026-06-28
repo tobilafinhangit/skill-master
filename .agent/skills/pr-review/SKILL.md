@@ -303,6 +303,8 @@ The parent (this) context must hold only the **work-list** and the **compact ver
 - **B1 stays lean:** resolve the work-list from light fields (number, title, branch). Match cards to PRs by **branch prefix first**; pull a PR/card **body** only for the leftovers prefix-matching can't resolve — never slurp every body into the parent.
 - **Wave + checkpoint:** run ~6 subagents at a time; append each wave's verdicts to a scratchpad file and aggregate from the file, not from memory. For >15 PRs (or any run you want resumable), drive the fan-out with the **Workflow tool** — one pipeline item per PR, `schema:` on each agent to force the compact verdict shape — instead of ad-hoc subagents.
 
+Measure a bulk run with `submodules/skill-master/scripts/measure-skill-run.ts --cards N` (deno) — watch **parent peak context**; it should stay ~flat as PR count grows.
+
 Auto-detect per repo from the **Repo Reference** below: the integration branch and the board. Match by `basename "$(git rev-parse --show-toplevel)"`; if no row matches, ask the user.
 
 ### B1. Resolve the batch
