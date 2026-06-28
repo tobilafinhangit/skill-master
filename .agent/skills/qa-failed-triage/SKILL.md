@@ -51,6 +51,8 @@ Each per-card child returns ONLY this shape (≤~250 tokens — no prose essays,
 `{ card, class, cause_one_line, evidence_refs[], remedy, needs_human }`
 `evidence_refs` are **pointers** (a SHA, a `file:line`, a row count, a rule filename) — not the content.
 
+> Measure a sweep's cost with `submodules/skill-master/scripts/measure-skill-run.ts --cards N` (deno). Watch **parent peak context** — a healthy fan-out keeps it ~flat as the column grows; a leak grows it per-card until the run crashes.
+
 ## Phase 1 — Enumerate (lean work-list only)
 
 1. Pull every card in the QA-Failed column **via the per-column endpoint** (`/boards/{B}/columns/{C}/cards.json` — `cards.json?board_id=` is silently ignored). **Paginate**: follow `Link: rel="next"` (page size escalates 15→30→50; don't stop on the first <15 page) and assert fetched count == `X-Total-Count`. A single fetch silently truncates. Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.
