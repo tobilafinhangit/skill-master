@@ -1,7 +1,7 @@
 ---
 name: board-cleanup
 description: Map a Fizzy board into a clear state-of-play, surface the real chaos (floating cards, stale artifacts, duplicate/overloaded work, dependency chains, scope-stale epics), then triage and split with the user's sign-off. Use when the user wants to "get back up to speed", "map out the board", "clean up Fizzy", reduce board chaos, or plan who-owns-what for a sprint/weekend. Repo-agnostic — works on any repo with a corresponding Fizzy board.
-version: 1.0.0
+version: 1.1.0
 license: MIT
 metadata:
   author: VettedAI
@@ -19,6 +19,13 @@ The job is five phases: **Pull → Map → Flag → Triage → Scope-and-split.*
 > **Verify against the live tree, never the card.** Cards go stale the moment they're written. Before you act on any claim ("17 fns left to clean", "table missing from staging", "not started"), check ground truth: the actual git branches, the deployed code, `to_regclass`/`information_schema`, the real file. In practice this routinely shrinks "epics" to near-done — and occasionally reveals the prod side is *cleaner* than the repo. This single check is what makes the plan trustworthy.
 
 Apply it hardest in Phase 5, but keep it in mind throughout.
+
+## Context budget — work from a lean index, not raw card bodies
+
+Phase 1 already files the raw pull to `/tmp/bc_cards.jsonl` — keep it that way: the parent context should hold a **lean index** (`number | title | column | assignees | tags`), never the full `description_html` of every card. A big board × wordy descriptions read into the parent fills the window. So:
+
+- **Map/Flag (Phases 2–3)** run off the lean index. Read a card's `description_html` only for the *specific* cards a check needs (a suspected dependency chain, a candidate epic) — not for all of them, and not preemptively.
+- **Scope-and-split (Phase 5)** is the expensive part: pulling each epic's full body + its git/deploy/catalog ground truth. For a board with several flagged epics, **fan out one subagent per epic** — each reads its own body + does its own verify-against-live-tree and returns a compact state (`{epic, workstreams[], done[], open[], needs_investigation[]}`). The parent never holds the raw epic bodies or the git/deploy output — only the returned states. Heavy text in the parent is billed every turn and can't be evicted; that is the cost you are controlling.
 
 ## Setup
 
@@ -97,7 +104,7 @@ Record decisions as comments so the board is self-documenting (see Phase 5 examp
 
 For any epic flagged in Phase 3:
 
-1. **Scope against reality** (the rule above). Pull each workstream's *actual* state — git branches, deployed code, the live catalog. Mark what's already done, what's confirmed open, what needs investigation. This is the highest-value step; it routinely halves the work.
+1. **Scope against reality** (the rule above). Pull each workstream's *actual* state — git branches, deployed code, the live catalog. Mark what's already done, what's confirmed open, what needs investigation. This is the highest-value step; it routinely halves the work. **Fan this out per epic** (see Context budget) — one subagent per epic does its own verify-against-live-tree and returns a compact state; don't read every epic's body + git/deploy output into the parent.
 2. **Split** the epic into child cards, one per coherent workstream / repo, each carrying enough to execute: file anchors with line numbers, the exact fns/files, constraints (integration branch, "don't clobber prod-only code"), and a crisp "Done when". Mirror the `grooming-architect` style (file anchors + logic constraints + verification).
 3. **Link** children back on the parent via a comment; turn the parent into an umbrella. Keep the priority emoji in child titles (team convention).
 

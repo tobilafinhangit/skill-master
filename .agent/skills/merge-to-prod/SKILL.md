@@ -1,7 +1,7 @@
 ---
 name: merge-to-prod
 description: Opens or updates a staging→main PR covering all Fizzy cards in the "Merge to Prod" column, audits git vs the column (flags shipped cards for closure and premature cards for move-back), and drafts a terse batched PR title/body. Auto-detects integration/target branches and Fizzy board per repo. Use when a batch of tickets has cleared QA + manual UX testing and is ready to ship to production.
-version: 1.1.0
+version: 1.2.0
 license: MIT
 ---
 
@@ -101,6 +101,8 @@ If the column is empty: stop. There's nothing to ship.
 ---
 
 ## Phase 3: Audit — Classify Each Card
+
+> **Context budget.** The per-card classification below reads the card's body + comments to extract PR refs, then runs git/PR containment checks. Keep that heavy text **out of the parent**: the parent holds only the audit table (`#N → bucket → evidence`). For columns over ~15 cards, **fan out one subagent per card** (or per wave of ~6) — each reads its own card body+comments + runs the containment checks and returns a compact `{card, bucket, evidence_refs}` (a PR number, a SHA — not the card text or git output). The shared `COMMITS`/`staging..main` list can be computed once in the parent and passed to each child.
 
 Compute commits on staging ahead of main:
 ```bash
