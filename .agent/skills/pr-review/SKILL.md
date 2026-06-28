@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: Reviews GitHub PRs against Fizzy tickets to verify an engineer delivered what was asked. Fetches PR diff + Fizzy card, runs ticket compliance + regression check, prints verdict, and optionally posts to Fizzy. Single PR or bulk (review a whole "PR Open" column / all open PRs in one parallel pass). Use when reviewing PRs from engineers before merging.
-version: 1.1.0
+version: 1.2.0
 license: MIT
 ---
 
@@ -297,6 +297,12 @@ PR Review Complete:
 
 Review many PRs in one pass. `/pr-review bulk` reviews the **union** of two sources; flags narrow it. Bulk reuses the single-PR pipeline (Steps 1–3) per PR — it does not invent a second review method.
 
+### Context budget (read before a big batch)
+
+The parent (this) context must hold only the **work-list** and the **compact verdict** each PR returns — never a PR diff, a card body, or a comment thread. Those live only inside the per-PR subagent (B2), which fetches its own and returns `{pr, card, verdict, …, headline}`. A diff is the largest single payload in a review; a parent that reads even a few directly will not survive a 20-PR batch. Two consequences:
+- **B1 stays lean:** resolve the work-list from light fields (number, title, branch). Match cards to PRs by **branch prefix first**; pull a PR/card **body** only for the leftovers prefix-matching can't resolve — never slurp every body into the parent.
+- **Wave + checkpoint:** run ~6 subagents at a time; append each wave's verdicts to a scratchpad file and aggregate from the file, not from memory. For >15 PRs (or any run you want resumable), drive the fan-out with the **Workflow tool** — one pipeline item per PR, `schema:` on each agent to force the compact verdict shape — instead of ad-hoc subagents.
+
 Auto-detect per repo from the **Repo Reference** below: the integration branch and the board. Match by `basename "$(git rev-parse --show-toplevel)"`; if no row matches, ask the user.
 
 ### B1. Resolve the batch
@@ -305,7 +311,7 @@ Auto-detect per repo from the **Repo Reference** below: the integration branch a
 ```bash
 INTEGRATION=...   # from Repo Reference (e.g. verify-deployments)
 gh pr list --state open --base "$INTEGRATION" \
-  --json number,title,headRefName,body,author --limit 100
+  --json number,title,headRefName,author --limit 100   # no `body` — keeps the parent lean (see Context budget)
 ```
 If the repo also takes PRs straight to `main`, run a second call with `--base main` and union the results.
 
@@ -323,7 +329,7 @@ PR_OPEN_COL=$(curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns.jso
 ```
 A single unpaginated column fetch silently truncates to its first page — always page to exhaustion
 and check the `X-Total-Count` header (`cards.json?board_id=` is silently ignored; use the per-column
-endpoint above). For each card, find its PR by matching the **card number** against the open-PR list (branch prefix `NNN-...`, or body containing `Card #NNN` / `cards/NNN`). A card with **no matching open PR** → record it as "no PR found" (usually: not pushed yet, or already merged) and skip the review — don't fabricate one.
+endpoint above). For each card, find its PR by matching the **card number** against the open-PR list by **branch prefix** (`NNN-...`); only if the prefix doesn't resolve, fetch that one PR's body and look for `Card #NNN` / `cards/NNN` — don't pull every PR body into the parent. A card with **no matching open PR** → record it as "no PR found" (usually: not pushed yet, or already merged) and skip the review — don't fabricate one.
 
 **Narrowing:** `--source column|open-prs` (one source only), explicit numbers (`bulk 342 351` → review just those), `--author <login>` (filter the open-PR list by `author.login`).
 
