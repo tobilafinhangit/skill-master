@@ -1,14 +1,14 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.1.0
+version: 3.2.0
 license: MIT
 metadata:
   author: VettedAI
   category: engineering-management
   tags: [productivity, performance-review, team-health, velocity, delegation, bounty]
   created: 2026-03-11
-  updated: 2026-05-30
+  updated: 2026-06-28
 argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--pre-invoice] [--draft|--payout]"
 ---
 
@@ -17,6 +17,18 @@ argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM
 Generates a cross-repo contributor analysis from merged PR data with bounty payout estimates. Designed for weekly standups, monthly reviews, quarterly performance cycles, delegation planning, and bounty reconciliation.
 
 > **Philosophy:** Deflation bias. This is an AI-assisted workflow — agents write most of the code, engineers supervise and validate. We pay for judgment and output, not volume. When in doubt, the lower tier wins.
+
+## Context budget — the heavy data stays in the script, never the conversation
+
+This skill pulls O(N) raw data: `gh pr list` (up to 500 PRs/repo across several repos), a `gh pr view` per above-S-tier PR, and the ~800-card Fizzy comment scan (paginated to exhaustion). If that raw JSON lands in the **agent's** context window, the run bloats and can crash — and unlike a script's process memory, text in the conversation is billed every turn for the rest of the run and can't be evicted.
+
+The rule: **the self-contained Python script is where all that data lives.** It shells out to `gh`/Fizzy, holds the PR JSON and comment threads in its own memory, and prints **only the finished report tables**. The agent context should only ever hold the script and its final markdown output — never raw `gh pr list` / `gh pr view` / `/comments.json` payloads. This is the engineering-pulse analogue of the per-card subagent fan-out the bulk Fizzy skills use: a disposable worker (here, the script process) absorbs the heavy text and returns a compact result.
+
+Concretely:
+- Do **not** run `gh pr list …` / `gh pr view …` / Fizzy fetches as standalone Bash calls whose JSON streams back into the conversation. Let the script do the fetching in-process and emit only tables.
+- If you must debug a raw pull interactively, **redirect to a file** (`gh pr list … > /tmp/ep_prs.json`) and inspect with `jq` + a few rows — never cat the whole array into the reply (same discipline as the `supabase-data-access` rule).
+- The `gh pr view` per-PR fan-out (Step 2) and the 800-card comment scan (Step 8 ops detection) are the two biggest sources — both are already designed to run inside the script's `ThreadPoolExecutor`; keep them there.
+- Verify with `submodules/skill-master/scripts/measure-skill-run.ts` — **parent peak context** should stay flat run-to-run regardless of how many repos/cards are scanned, because the volume lives in the script, not the conversation. A parent peak that grows with batch size means raw data is leaking into context.
 
 ## When to Use
 
