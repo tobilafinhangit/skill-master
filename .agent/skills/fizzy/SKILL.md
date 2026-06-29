@@ -228,25 +228,40 @@ got=$(wc -l < /tmp/col.jsonl)
 [ "$got" = "$total" ] || echo "⚠️ TRUNCATED: got $got of $total"
 ```
 
-**3. The three built-in lifecycle lanes are NOT columns — and two are invisible to the list API.**
-`columns.json` returns only the board's *custom* columns. The built-in lanes are card flags:
+**3. The three built-in lifecycle lanes are NOT columns — list them via `indexed_by`, NOT the
+per-column endpoint.** `columns.json` returns only the board's *custom* columns, and the
+per-column `cards.json` endpoint returns ONLY active cards — it omits Not Now and Done. The
+built-in lanes are card flags, and each has its own index lane on the workspace-wide
+`/cards.json` endpoint:
 
-| UI lane | Card field | Listable via API? |
+| UI lane | Card field | How to list |
 |---|---|---|
-| **Maybe?** | `column == null` | ✅ yes — returned as open cards with no column |
-| **Not Now** | `postponed == true` | ❌ **NO list endpoint returns these** |
-| **Done** | `closed == true` | ❌ **NO list endpoint returns these** |
+| **Maybe?** | `column == null` | per-column omits it; appears in whole-board `/cards.json` as a card with `column == null` |
+| **Not Now** | `postponed == true` | `GET /cards.json?board_ids[]={B}&indexed_by=not_now` |
+| **Done** | `closed == true` | `GET /cards.json?board_ids[]={B}&indexed_by=closed` |
 
-No query param (`closed=true`, `status=closed`, `scope=done`, `filter=not_now`, …) and no
-reserved-slug path (`/columns/done/...`, `/closures.json`, …) surfaces Not Now or Done — all
-ignored or 404. To read a specific Not Now/Done card you must already know its number:
-`GET /cards/{N}.json` (its `postponed`/`closed` flag will be set). The UI is the only place those
-two counts are visible. Transition to Done = `POST /cards/{N}/closure.json` (see Close Card).
+> ⚠️ Corrected 2026-06-29 (was previously documented as "NO list endpoint returns these" —
+> that is WRONG). The lane IS listable, but only with the **array** board param `board_ids[]=`
+> (the singular `board_id=` from gotcha 1 is still silently ignored) **plus** `indexed_by=<lane>`.
+> Verified on the Bugs board: `indexed_by=not_now` → 58 cards (all `postponed:true`),
+> `indexed_by=closed` → 135. This is the exact endpoint Basecamp's official
+> `fizzy card list --indexed-by` hits.
 
-**4. Auto-postpone makes idle cards VANISH.** Boards carry `auto_postpone_period_in_days`
-(`GET /boards/{B}.json` — e.g. 30 on Congrats). A card idle that long auto-moves to **Not Now**,
-dropping out of BOTH the per-column endpoint AND the list API. A long-idle card that "disappeared"
-from a column was likely auto-postponed, not completed — never infer "shipped" from its absence.
+`indexed_by` lanes: `not_now`, `closed`, `stalled`, `postponing_soon`, `golden`, `all`. **curl
+must run with `-g` (globoff)** or it treats `[]` in `board_ids[]` as a glob and sends a broken
+URL (silent empty result). Paginate via `Link: rel="next"` exactly as gotcha 2 — these lanes
+page too (Not Now was 3 pages). Transition to Done = `POST /cards/{N}/closure.json` (see Close Card).
+
+**Reusable helper:** `scripts/fizzy-lane.sh <board_id> [lane] [format]` wraps this (raw curl,
+no CLI dependency — works on CI runners). `lane` defaults to `not_now`; `format` is
+`table`|`numbers`|`json`. e.g. `scripts/fizzy-lane.sh 03fl735hqcd0h1pettl8o94oo not_now numbers`.
+
+**4. Auto-postpone makes idle cards VANISH from columns.** Boards carry `auto_postpone_period_in_days`
+(`GET /boards/{B}.json` — e.g. 90 on Bugs, 30 on Congrats). A card idle that long auto-moves to
+**Not Now**, dropping out of the per-column endpoint (and the active board view). A long-idle card
+that "disappeared" from a column was likely auto-postponed, not completed — never infer "shipped"
+from its absence. To find it, list the Not Now lane (gotcha 3: `indexed_by=not_now`), don't assume
+it's gone.
 
 ### List Cards by tag (whole-workspace)
 ```bash
@@ -314,7 +329,7 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/triage.json" \
 
 ### Close Card (→ Done lane)
 "Done" is card closure, not a column move. Returns `204 No Content`. The card leaves its column
-and becomes invisible to the list API (gotcha 3 above).
+and drops out of the per-column endpoint — list it back via `indexed_by=closed` (gotcha 3 above).
 ```bash
 curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/closure.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
@@ -369,7 +384,7 @@ Link: <https://app.fizzy.do/6102589/cards?page=2>; rel="next"
 ```
 
 See **Reading a Board (cards + columns) — AUTHORITATIVE** above for the full paginator and the
-`board_id`-ignored / Not-Now-&-Done-invisible / auto-postpone gotchas.
+`board_id`-ignored / lane-listing-via-`indexed_by` / auto-postpone gotchas.
 
 ## Caching
 
