@@ -53,15 +53,17 @@ When invoked with no arguments:
 
 These repos have `submodules/skill-master` as a git submodule:
 
-| Repo | Path |
-|------|------|
-| vetted-congrats-Flow-GENEROUS | `/Users/USER/code/repos/vetted-congrats-Flow-GENEROUS` |
-| backend-restructing | `/Users/USER/code/repos/backend-restructing` |
-| vettedai-audition-supabase-version | `/Users/USER/code/repos/vettedai-audition-supabase-version` |
-| vfacoffeechat | `/Users/USER/code/repos/vfacoffeechat` |
-| nts-opportunity-hour-digest | `/Users/USER/code/repos/nts-opportunity-hour-digest` |
+| Repo | Path | Pointer-bump policy |
+|------|------|---------------------|
+| vetted-congrats-Flow-GENEROUS | `/Users/USER/code/repos/vetted-congrats-Flow-GENEROUS` | **PR-GATED — `main` is production, never direct-push.** Bump via feature→`verify-deployments`→release→main (see `sister-repo-branch-conventions`). The propagate loop must SKIP this repo's pointer commit even though its branch is `main`. |
+| backend-restructing | `/Users/USER/code/repos/backend-restructing` | integration branch = `backend-verify-deployment` (NOT `main`, which is prod) |
+| vettedai-audition-supabase-version | `/Users/USER/code/repos/vettedai-audition-supabase-version` | integration = `lovable-staging`; direct-push OK there |
+| vfacoffeechat | `/Users/USER/code/repos/vfacoffeechat` | `main` is integration; direct-push OK |
+| nts-opportunity-hour-digest | `/Users/USER/code/repos/nts-opportunity-hour-digest` | `main` is integration; direct-push OK |
 
-When a new repo is added to the ecosystem, add it to this table.
+When a new repo is added to the ecosystem, add it to this table **with its pointer-bump policy** — do not assume `main` is a safe direct-push target (for prod-via-PR repos like Congrats and backend-restructing, it is not).
+
+> ⚠️ **PR-gated repos: `PR_GATED_REPOS=(vetted-congrats-Flow-GENEROUS)`.** For any repo in this set, NEVER commit/push a pointer bump directly — not even on `main`. Update the working tree only and report that the bump needs a PR via the repo's release flow. (2026: a blanket loop treating every repo's `main` as integration pushed a pointer bump straight to Congrats prod, bypassing its PR rule. This carve-out exists to prevent that recurrence.)
 
 ### How consumers pick up updates (the submodule is PINNED)
 
@@ -159,6 +161,9 @@ REPOS=(
 )
 
 INTEGRATION_BRANCHES="main lovable-staging verify-deployments backend-verify-deployment qa-mirror"
+# Repos whose `main` is production-via-PR — NEVER direct-push a pointer bump here,
+# even though the branch name is an "integration" name. (See Consuming Repos table.)
+PR_GATED_REPOS="vetted-congrats-Flow-GENEROUS"
 
 for repo in "${REPOS[@]}"; do
   echo "=== $(basename $repo) ==="
@@ -170,10 +175,14 @@ for repo in "${REPOS[@]}"; do
   # Update submodule working tree to latest skill-master main
   git submodule update --remote submodules/skill-master
 
-  # Persist the pointer ONLY on an integration branch — never pollute a feature PR.
+  # Persist the pointer ONLY on an integration branch — never pollute a feature PR,
+  # and never direct-push to a PR-gated (prod-via-PR) repo.
   branch=$(git rev-parse --abbrev-ref HEAD)
   if git diff --quiet submodules/skill-master; then
     echo "  pointer already current — nothing to commit"
+  elif echo " $PR_GATED_REPOS " | grep -q " $(basename $repo) "; then
+    echo "  ⚠️ PR-GATED repo — working tree updated, pointer NOT committed."
+    echo "     Open a PR via this repo's release flow (feature→verify-deployments→release→main)."
   elif echo " $INTEGRATION_BRANCHES " | grep -q " $branch "; then
     git add submodules/skill-master
     git -c user.email="tobi@venturefor.africa" -c user.name="tobilafinhangit" \
