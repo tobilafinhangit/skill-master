@@ -111,6 +111,8 @@ COMMITS=$(git log --format='%H|%s' origin/$MAIN..origin/$STAGING)
 
 For each card `#N`, classify into one of four buckets.
 
+> **The close test — proof is merge-base ancestry, nothing softer.** A card may ONLY be classified 🟢/✅ (shipped) when its fix commit is an **ancestor of the target repo's `main`**: `git merge-base --is-ancestor <mergeCommit> origin/main`. A "Merge to Prod" column position, a QA full-pass comment, a `[FIXED]` title, or a `.claude/rules/*.md` documenting the fix-class are **NOT proof** — they mean *queued / verified / pattern-learned*, not *in production*. **Verify against the repo that OWNS the fix** (Congrats `vetted-congrats-Flow0.1`, `backend-restructing`), not this board's home repo — detect it from the QA-signoff branch name and `cd` into that repo to run the ancestry check; "no visibility from here" is not a verdict. This is the discipline behind step 2 below — when a finalize/triage pass closes cards as shipped, run the ancestry check, not the column read. (Codified: `.claude/rules/close-requires-main-ancestry.md`.)
+
 **Detection strategy per card** (try in order, stop at first definitive hit):
 
 1. **Exact number match in staging..main** — commit message contains `#N` (word-boundary), `N/-`, `feat/N-`, or `/N/`:
@@ -156,6 +158,8 @@ Buckets:
 | ❓ **Unknown** | No matches at all | Ask the user before any action |
 
 > **Guardrail — never silently move back a QA-passed card.** If a card carries a QA "FULL PASS / sign-off" comment but steps 1–5 find nothing, do **not** classify it ❌ Premature and move it back to QA. A passed card with no detectable commit is almost always a *finalize gap* (its work shipped in an earlier batch under an unrelated branch/squash name), not missing work. Classify it ❓ Unknown and surface it explicitly for a human decision. Moving a genuinely-shipped, QA-signed card back to QA is the costlier error than leaving it in place one extra cycle.
+>
+> **Bidirectional corollary — "no PR in the card" is NOT proof of unshipped.** The fix often lives in `main` under a keyword-matched commit the card never references. Before concluding a card is open (or reopening one), grep the target repo's `main` for the fix: `git -C <repo> log origin/main --oneline --since="120 days ago" | grep -iE "<2-3 distinctive title words>"`, then confirm with `git merge-base --is-ancestor <sha> origin/main`. Don't close on a soft positive (column/QA/label); don't reopen on a soft negative (no-PR) — both are resolved by locating the actual commit.
 
 **Also collect infra commits** in `staging..main` that don't match any card — group them under "Infra / chore" in the PR body.
 
