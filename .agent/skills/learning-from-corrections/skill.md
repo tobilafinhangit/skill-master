@@ -1,7 +1,7 @@
 ---
 name: learning-from-corrections
 description: Use after bug fixes or corrections to update .claude/rules/ with learned anti-patterns and add a one-liner to the CLAUDE.md index table. Invoke after fixing mistakes to build project memory. Every run also prunes stale rules so the set stabilizes instead of growing unbounded.
-version: 2.1.0
+version: 2.2.0
 ---
 
 # Learning from Corrections
@@ -46,9 +46,14 @@ If not clear from conversation context, ask:
 
 ### Step 4: Write Rule File
 
-Create `.claude/rules/{name}.md` using this template:
+Create `.claude/rules/{name}.md` using this template. **The `paths:` frontmatter is mandatory unless the rule is genuinely always-on** (see Step 4a):
 
 ```markdown
+---
+paths:
+  - "<glob matching the files this rule governs>"
+---
+
 # [Title]
 
 ## Rule
@@ -73,6 +78,25 @@ Create `.claude/rules/{name}.md` using this template:
 - [file1]
 - [file2]
 ```
+
+### Step 4a: Scope the rule with `paths:` (controls when it loads — REQUIRED)
+
+This is the single biggest lever on context cost. A rule **without** `paths:` loads into **every** session (same priority as CLAUDE.md). A rule **with** `paths:` loads **only when Claude reads a file matching the glob** — so a hundred scoped rules cost almost nothing at launch and surface exactly when relevant. Default to scoping every rule. (A repo that skips this drifts into loading 100k+ tokens of rules every session — the failure mode this step exists to prevent.)
+
+Derive the glob from the rule's `## Affected Files`. Common patterns (adjust to the repo's actual layout):
+
+| Rule governs… | `paths:` glob |
+|---|---|
+| Edge functions / serverless handlers | `supabase/functions/**/*.ts` |
+| SQL migrations / DB schema / triggers / RLS | `supabase/migrations/**/*.sql` |
+| React / frontend components & hooks | `src/**/*.{ts,tsx}` |
+| CI / workflows | `.github/workflows/**` |
+| Build config | `vite.config.ts` (or the specific config file) |
+| Maintenance / data scripts | `scripts/**` |
+
+If the rule spans areas, list multiple globs (one `- "..."` line each). Brace expansion (`**/*.{ts,tsx}`) and `**` are supported. Prefer the **directory the `## Affected Files` actually live in** over an over-broad `**/*`.
+
+**Leave `paths:` OFF (always-on) ONLY when** the rule is a workflow/process directive with no triggering file — e.g. branch policy, where credentials live, "never run `db reset`", git/worktree discipline. Litmus test: *is there a file Claude would edit that should make this rule appear?* If yes → scope it. If the rule fires on an **activity** (calling an external API, diagnosing a prod incident) rather than a file edit, prefer turning it into a **Skill** (loads on description-match) over leaving it always-on.
 
 ### Step 5: Add One-Liner to CLAUDE.md Table
 
@@ -120,8 +144,13 @@ Adding without retiring is the drift engine. Run this **every** invocation, even
 
 **Conversation context:** Fixed `onClick={() => handleFn}` bug
 
-**Action 1:** Create `.claude/rules/event-handler-refs.md`:
+**Action 1:** Create `.claude/rules/event-handler-refs.md` (scoped to frontend files, since the affected files are React components):
 ```markdown
+---
+paths:
+  - "src/**/*.{ts,tsx}"
+---
+
 # Event Handler Refs
 
 ## Rule
@@ -154,6 +183,7 @@ Wrapping a handler in an arrow function without calling it (`() => fn` vs `() =>
 ## Quality Checklist
 Before completing, verify:
 - [ ] Rule file created/updated in `.claude/rules/`
+- [ ] `paths:` frontmatter set (Step 4a) — OR deliberately omitted because the rule is genuinely always-on
 - [ ] Anti-pattern is specific (not generic advice)
 - [ ] Code examples are from the actual fix (not hypothetical)
 - [ ] CLAUDE.md only has a new table row (no code blocks added)
@@ -161,6 +191,7 @@ Before completing, verify:
 - [ ] Prune pass (Step 7) ran — stale/story-only/conflicting candidates surfaced to the user (even if 0 actioned)
 
 ## Important
+- **ALWAYS** add `paths:` frontmatter (Step 4a) unless the rule is genuinely always-on — this is what keeps the rule set cheap as it grows. A bare rule loads every session forever; a scoped rule loads only when its files are touched.
 - **NEVER** append code blocks to CLAUDE.md — all detail goes in `.claude/rules/`
 - Skip generic platform knowledge (e.g., "Supabase SQL Editor returns one result") — only record project-specific patterns
 - Keep entries concise — focus on the pattern, not the story
