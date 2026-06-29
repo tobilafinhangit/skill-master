@@ -1,7 +1,7 @@
 ---
 name: learning-from-corrections
 description: Use after bug fixes or corrections to update .claude/rules/ with learned anti-patterns and add a one-liner to the CLAUDE.md index table. Invoke after fixing mistakes to build project memory. Every run also prunes stale rules so the set stabilizes instead of growing unbounded.
-version: 2.2.0
+version: 2.3.0
 ---
 
 # Learning from Corrections
@@ -95,6 +95,10 @@ Derive the glob from the rule's `## Affected Files`. Common patterns (adjust to 
 | Maintenance / data scripts | `scripts/**` |
 
 If the rule spans areas, list multiple globs (one `- "..."` line each). Brace expansion (`**/*.{ts,tsx}`) and `**` are supported. Prefer the **directory the `## Affected Files` actually live in** over an over-broad `**/*`.
+
+**Coupling/drift rules — scope to EVERY side, not just the incident site.** If the rule's imperative is "when you change X, also update its writer/consumer Y" (CHECK-constraint drift, migration↔writer coupling, mirror-sync, multi-channel webhooks), scope it to **both** X's and Y's directories. The rule must load when someone edits the *writer* (often an edge fn), not only when they edit the thing that changed (often a migration). Scoping such a rule to where the *incident* happened silently fails to fire when the writer is edited later — re-enabling the exact bug. Derive the side-set from the lesson's text ("audit every trigger, RPC, **edge function**, seed…"), not just from where the original fix landed.
+
+**Bias broad / always-on when the trigger set isn't fully enumerable.** A guardrail that fails to load silently re-enables the incident it exists to prevent — under-scoping is a *correctness* failure, over-scoping only costs a little context. If a rule guards an **irreversible or new-file action** (creating a migration, a registry insert, a destructive command) prefer **always-on**, because path rules trigger on *reading* a matching file and brand-new files are written, not read.
 
 **Leave `paths:` OFF (always-on) ONLY when** the rule is a workflow/process directive with no triggering file — e.g. branch policy, where credentials live, "never run `db reset`", git/worktree discipline. Litmus test: *is there a file Claude would edit that should make this rule appear?* If yes → scope it. If the rule fires on an **activity** (calling an external API, diagnosing a prod incident) rather than a file edit, prefer turning it into a **Skill** (loads on description-match) over leaving it always-on.
 
