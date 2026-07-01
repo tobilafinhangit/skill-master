@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.3.0
+version: 3.4.0
 license: MIT
 metadata:
   author: VettedAI
@@ -223,8 +223,22 @@ All other flags are advisory — the manager decides during review.
 
 **Retainer / shadow-bounty split (Fix 3 + Fix 5).** Before totaling:
 - For each `employment: retainer` engineer, the bounty + ops Net renders as `Shadow-bounty (not paid — retainer): X KES` with the footnote: _"Floor, not ceiling. Infra/security/investigation work is under-measured by line/task proxies — see the Capacity & Invisible Work section and value note."_ This is **internal-only** — never include it in an engineer-facing statement.
-- `retainer_role: qa` engineers: suppress the shadow-bounty number entirely (it's not a meaningful measure of QA work); show only their Capacity & Invisible Work row.
+- `retainer_role: qa` engineers: **still surface their code output** as shadow-bounty in the Retainer ROI table (§5f-ter) — a QA person building automation tooling (Elvis in `vetted-automation`) is real output worth tracking (Tobi, 2026-07-01, superseding the earlier "suppress entirely"). But their shadow figure **understates a QA role** — always show it *alongside* their QA throughput (manual-QA sessions + tickets tested, §5g-bis), never as their standalone value.
 - **Team total payable EXCLUDES all shadow-bounty.** Compute "Team total payable" = sum of Net for `employment: bounty` engineers only. Show the shadow-bounty total separately as a clearly-labeled non-payable line, e.g. `Shadow-bounty (retained engineers, not paid): Y KES`.
+
+### 5f-ter. Retainer Output — ROI signal (standard monthly section)
+
+Render this table every run for **every** `employment: retainer` engineer. It's the durable monthly artefact for gauging retainer output against retainer cost — **not** a payout, and **never** shown to the engineer. Apply the same warranty/deliverable-collapse rules as bounty (so it's a conservative floor).
+
+| Engineer | Role | Code output (KES) | Ops/QA (KES) | Shadow total | vs retainer cost |
+|----------|------|------------------:|-------------:|-------------:|-----------------:|
+
+- **Code output** = collapsed shadow-bounty from merged PRs / git-log commits (same tiering + collapse as bounty).
+- **Ops/QA** = ops-category total (pr-review, manual-QA, etc.) from the Fizzy scan.
+- **Shadow total** = Code + Ops/QA.
+- **vs retainer cost** = `round(100 × shadow_total / retainer_kes_month)` (default 30,000). This is the ROI ratio.
+- Sort by shadow total desc. Add the standing caveat verbatim: _"Floor, not ceiling — infra/security/QA work is under-read by line/task proxies. A low % (e.g. an infra/security engineer at 25%) is almost always under-measurement, not low output. Read alongside §5g-bis."_
+- For `retainer_role: qa`, append a one-line callout with their QA throughput (manual-QA session count + tickets tested) so the % is never read as their value.
 
 Show a **monthly projection** only for windows of 14+ days:
 | Author | Net (KES) | Window Days | Projected Monthly (KES) | Projected Monthly (USD @ 130) |
