@@ -44,3 +44,12 @@ repos:
     path: /Users/USER/code/repos/vetted-gtm
     integration_branches: [main]
     source: git-log
+
+  # Wisdom's QA-automation tool. Personal repo (wizzfi1/manual_qa), no GitHub PRs —
+  # direct-push to `master`. Commits authored "Wisdom Shaibu" <shaibuwisdom@gmail.com>,
+  # mapped to engineer `wizzfi1` via its `git_email` in engineers.yaml. This is the repo
+  # that lets us gauge Wisdom's code bounty (Fizzy #1344 lineage).
+  - name: manual-qa
+    path: /Users/USER/code/repos/manual_qa
+    integration_branches: [master]
+    source: git-log

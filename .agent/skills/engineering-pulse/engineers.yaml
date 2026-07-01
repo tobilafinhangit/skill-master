@@ -147,16 +147,16 @@ engineers:
     bounty_start_date: 2026-06-08
     active: true
 
-  # Bounty-eligible from 2026-06-08, but PARKED for automated pulse: his June work is on
-  # Fizzy #1344 in a repo we don't have access to yet (not in repos.yaml). Until that repo
-  # is added, the report must print "not measured" for him, never 0. Run his pulse
-  # individually once the repo is accessible. github login `wisdom-shaibu` 404s — unconfirmed.
-  - github: wisdom-shaibu  # TODO: confirm real github login (Fizzy handle: wizzfi1); current guess 404s
+  # Bounty-eligible from 2026-06-08. Builds the QA-automation tool in wizzfi1/manual_qa
+  # (repos.yaml `manual-qa`, source: git-log). Commits are authored "Wisdom Shaibu"
+  # <shaibuwisdom@gmail.com>, so git-log attribution matches on `git_email` (his GitHub
+  # login `wizzfi1` won't appear in `%an`). Fizzy handle: wizzfi1.
+  - github: wizzfi1  # confirmed 2026-07-01: owner of wizzfi1/manual_qa (was wrongly guessed `wisdom-shaibu`)
     display_name: Wisdom Shaibu
     reference_initials: WS
     currency: KES
-    fizzy_user_id:  # TODO (Fix 6 / spec §3): discover from any card wizzfi1 commented on —
-    #               GET /cards/{n}/comments.json → creator.id. Until filled, his ops
-    #               are UNDETECTED; the report must print "not measured" for him, not 0.
+    git_email: shaibuwisdom@gmail.com   # git-log author-mapping key (commit %ae)
+    git_name: Wisdom Shaibu             # fallback match on %an
+    fizzy_user_id: 03frph2uy8euyldya0xby1av7  # discovered 2026-07-01 via /users.json (Wisdom Ojochegbe Shaibu)
     bounty_start_date: 2026-06-08
-    active: false  # PARKED — repo for #1344 not yet accessible; measure individually later
+    active: true

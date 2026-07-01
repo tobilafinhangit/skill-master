@@ -98,6 +98,10 @@ categories:
       - 'qa manual testing'   # added 2026-07-01: Liban's #919 heading format missed the list (false negative)
       - 'manual testing –'
       - 'manual testing —'
+      - 'qa report'           # added 2026-07-01: Wisdom's session formats (dash-agnostic)
+      - 'qa update'
+      - 'qa reply'
+      - 'manual ui/ux testing'
     min_length: 400
 
   # QA verdict detection (Fix 3, 2026-05-30). This is a CAPACITY signal (tickets
