@@ -7,6 +7,14 @@
 #
 # `name` is the short label used in tables and breakdowns. Keep it lowercase and
 # stable — renaming a repo here means historical reports will read inconsistently.
+#
+# `source` (optional, default `gh-pr`) selects how contributions are counted:
+#   - `gh-pr`   → count merged GitHub PRs into `integration_branches` (the default).
+#   - `git-log` → the repo has NO GitHub PRs (work is squash-pushed straight to the
+#                 integration branch). Count each non-merge commit on the integration
+#                 branch as a PR-equivalent, deriving files/lines from `git log --numstat`
+#                 and the author→engineer mapping from the commit author. Use this for
+#                 personal-repo / direct-push workflows where `gh pr list` returns [].
 
 repos:
   - name: audition
@@ -28,3 +36,11 @@ repos:
   - name: onboarding
     path: /Users/USER/code/repos/vetted-engineering-onboarding
     integration_branches: [main, staging]
+
+  # Joy's GTM prospecting tool. Personal repo (JoyyCLangat/vetted-gtm), no GitHub PRs —
+  # work is squash-pushed straight to main referencing Fizzy cards (#1329–#1336). Counted
+  # via git log, not `gh pr list` (which returns []). See `source: git-log` above.
+  - name: gtm
+    path: /Users/USER/code/repos/vetted-gtm
+    integration_branches: [main]
+    source: git-log

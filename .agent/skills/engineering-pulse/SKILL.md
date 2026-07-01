@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.2.0
+version: 3.3.0
 license: MIT
 metadata:
   author: VettedAI
@@ -111,6 +111,25 @@ This enables revert detection, file-path analysis, and review tracking.
 **Exclude bots:** Filter out authors where `is_bot: true` or login matches: `dependabot`, `renovate`, `github-actions`, `lovable-dev`.
 
 **Exclude founder:** `tobilafinhangit` is tracked in a separate "Founder Activity" section — not included in the bounty table. Founder output is sweat equity, not bounty-eligible.
+
+### Step 2b: `source: git-log` repos (no GitHub PRs)
+
+Some repos have `source: git-log` in `repos.yaml` — they have **no GitHub PRs** (`gh pr list` returns `[]`) because work is squash-pushed straight to the integration branch (e.g. Joy's `vetted-gtm`, personal repo, direct-to-`main`). For these repos, **do not** call `gh pr list`; instead derive one **PR-equivalent per non-merge commit** on the integration branch:
+
+```bash
+# One record per commit: header line then a numstat block per commit
+git -C <repo.path> log <integration_branch> --no-merges --since=<since> --until=<until> \
+  --numstat --date=iso-strict --format='__COMMIT__%H|%an|%ae|%cI|%s'
+```
+
+Map each commit to a PR-equivalent for the **same** tiering/bounty pipeline as Step 3+:
+- **author** → match the commit author (`%an` / `%ae`) against `engineers.yaml` (its `github` login, or a `git_name`/`git_email` if present). Joy's commits are authored `JoyyCLangat`, which equals her `github` key.
+- **changedFiles** → number of numstat rows for the commit (after the deductions in Step 3).
+- **additions / deletions** → summed numstat columns (binary files show `-`; treat as 0 lines, still 1 file).
+- **mergedAt** → committer date `%cI` (used for the time-window filter, same as PR `mergedAt`).
+- **title / number** → subject `%s` (the trailing `(#NNNN)` is a **Fizzy card**, not a GitHub PR — label it as such in tables, don't link it as a PR).
+
+Everything downstream is identical: deductions, LOWER-tier-wins classification, `inflate-suspect` flagging, bot/founder exclusion, and per-engineer `bounty_start_date` filtering all apply to git-log records exactly as to `gh-pr` records. There is no `gh pr view` enrichment for these repos (no reviews/commits API) — note that in the report where review-based signals would otherwise appear.
 
 ## Step 3: Classify PR Size Tiers
 
@@ -468,7 +487,7 @@ These rates are fixed in KES (Kenyan Shillings). They are intentionally conserva
 
 ## Implementation Notes
 
-- Run all `gh pr list` commands in parallel (one per repo) for speed
+- Run all `gh pr list` commands in parallel (one per repo) for speed; for `source: git-log` repos substitute the `git log --numstat` pull from Step 2b (also parallelizable)
 - Fetch `gh pr view` data (files, reviews) only for PRs above S-tier threshold to avoid API rate limits
 - Use Python for data processing — it handles JSON, dates, and table formatting well
 - The analysis script is self-contained in a Python block. **Allowed deps: stdlib + `pyyaml`** (for parsing `repos.yaml`, `engineers.yaml`, `ops-rates.yaml`). Install with `pip3 install --quiet pyyaml` if missing.
@@ -488,7 +507,7 @@ These rates are fixed in KES (Kenyan Shillings). They are intentionally conserva
 
 | System | Source of truth | What it counts |
 |---|---|---|
-| Bounty (PRs) | `gh pr list` across `repos.yaml` | Merged PRs into integration branches, tiered S/M/L/XL by lower of files/lines |
+| Bounty (PRs) | `gh pr list` across `repos.yaml` (or `git log --numstat` for `source: git-log` repos) | Merged PRs / direct-push commits into integration branches, tiered S/M/L/XL by lower of files/lines |
 | Ops contributions | Fizzy comments + card creations across `ops-rates.yaml > boards` | pr-review, qa-handoff, ticket-review, manual-qa (comments) + prod-triage (card creations). Deduped per `(engineer, card, category)` — no re-reviews; distinct-sub-branch exception |
 | Capacity & Invisible Work (signal, not paid) | Fizzy comments + `gh pr list --state open` | PRs reviewed, tickets resolved-by-comment, QA verdicts (tickets tested), open/in-flight PRs + lines |
 | Employment / payability | `engineers.yaml` `employment` | `bounty` → payable; `retainer` → shadow-bounty (not paid, excluded from team total); `retainer_role: qa` → suppress shadow-bounty, measure on QA throughput |
