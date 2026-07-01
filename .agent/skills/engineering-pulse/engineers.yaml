@@ -125,17 +125,20 @@ engineers:
     retainer_role: engineering
     active: true
 
-  - github: Elvis  # QA. NOT in the PR bounty table; measured on QA throughput.
-    display_name: Elvis
+  - github: Much1r1  # Elvis. Real GitHub login (was wrongly 'Elvis'). Owns Much1r1/Vetted_automation.
+    display_name: Elvis Muchiri
     reference_initials: EL
     currency: KES
+    git_email: muchirielvis375@gmail.com   # git-log author-mapping key (commit %ae)
+    git_name: Much1r1                       # also commits as "Elvis Muchiri" (same email → maps)
     fizzy_user_id: 03fcio1h8spstjpkc82vciugk
     employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
     retainer_kes_month: 30000
-    retainer_role: qa               # qa → suppress PR/shadow-bounty; measure on
-    #                                 manual-QA sessions + tickets tested (Capacity
-    #                                 & Invisible Work). Near-zero QA throughput in
-    #                                 the window is a flag to surface, not a number.
+    retainer_role: qa               # qa → not bounty-payable. Historically shadow-bounty was
+    #                                 suppressed, but Tobi (2026-07-01) wants retainer CODE output
+    #                                 tracked for ROI: his automation work in vetted-automation is
+    #                                 now surfaced as shadow-bounty (ROI floor), ALONGSIDE his QA
+    #                                 throughput (manual-QA sessions + tickets tested). Not paid.
     active: true
 
   # Bounty-eligible from 2026-06-08. Works in vetted-gtm (source: git-log) + audition.

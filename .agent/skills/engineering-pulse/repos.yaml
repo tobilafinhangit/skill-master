@@ -53,3 +53,13 @@ repos:
     path: /Users/USER/code/repos/manual_qa
     integration_branches: [master]
     source: git-log
+
+  # Elvis's QA-automation repo (Much1r1/Vetted_automation). Mixed workflow (some PRs,
+  # mostly direct-push to main) + github-actions[bot] commits — git-log captures his full
+  # output for ROI tracking; the bot commits map to no engineer and are dropped. Commits
+  # authored "Much1r1"/"Elvis Muchiri" <muchirielvis375@gmail.com>, mapped via git_email.
+  # Elvis is a retainer (QA) — this measures output for performance/ROI, NOT bounty payout.
+  - name: vetted-automation
+    path: /Users/USER/code/repos/Vetted_automation
+    integration_branches: [main]
+    source: git-log
