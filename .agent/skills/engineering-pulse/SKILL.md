@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.4.0
+version: 3.5.0
 license: MIT
 metadata:
   author: VettedAI
@@ -453,6 +453,7 @@ In addition to bounty (merged PRs), engineers earn for skill-assisted ops work t
    - **Card-creation categories** (`prod-triage`): when a category specifies `surface: card_creation`, scan card metadata instead of comments. Match if the card was created by the engineer's `fizzy_user_id`, on a board in the category's `boards` list, with a title hitting any of `title_detect_any`. Each matching card counts once at `rate_kes` regardless of how the engineer later updates it.
    - **QA-verdict surface** (`qa-verdict`, `surface: qa_verdict`): a CAPACITY count (tickets tested), NOT a paid category. Detect a QA verdict by the **structural** signal first — a card moved into or out of any column in `qa_column_ids` is a QA action regardless of comment wording — then by the **format-tolerant** `verdict_regex` (case-insensitive) for comment-only sign-offs/blocks. Do NOT rely on the narrow `manual-qa` keywords for qa-role engineers: they miss ~97% of real QA verdicts (`TICKET #X — QA REVIEW SIGN-OFF` / `QA BLOCK` / `UI TESTING SIGN-OFF`). Dedup per distinct card; optionally split block/fail vs sign-off/pass via `block_regex` / `signoff_regex`. Surfaces in "Capacity & Invisible Work", not in the ops payable total.
 4. **Dedup ops matches per `(engineer, card, category)` — we do not pay for re-reviewing/re-testing the same card** (Tobi, 2026-05-30). Within a single card, collapse repeat matches of the same category by the same engineer to ONE. **Distinct-sub-branch exception:** a single Fizzy card carrying multiple distinct sub-branch PRs (e.g. #672 = 672a–e) counts each distinct branch — detect distinct branch/PR refs in the matched comments and credit one per distinct ref; fall back to per-card (one) if no distinct refs are found.
+4b. **Self-QA / self-review does NOT double-pay** (Tobi, 2026-07-01). An ops match (manual-QA, pr-review, ticket-review, qa-handoff) on a Fizzy card the **same engineer also authored code for in the window** is part of shipping that ticket — already covered by the code bounty + warranty — and is **excluded from paid ops**. Build `authored_tickets[engineer]` = the set of card numbers each engineer wrote code for (extract `#NNNN` / `(NNNN)` refs from their PR titles + git-log commit subjects, all records incl. excluded). When an ops comment by engineer E lands on card N, credit it only if `N ∉ authored_tickets[E]`. QA/review of **another** engineer's ticket still pays in full — this is why a dedicated QA role (Elvis) is credited for the bulk of their throughput while a code engineer QA-ing their own feature is not. Report the excluded self-QA total per engineer for transparency (don't silently drop it). NOTE: this is a **paid-ops** rule only — the `qa-verdict` capacity surface (§5g-bis) still counts self-verdicts, since capacity is a throughput signal, not a payout.
 5. Sum per-engineer per-category: `count × rate_kes` = subtotal. Net ops = sum of all category subtotals.
 
    **Retainer awareness (see `engineers.yaml > employment`):**
