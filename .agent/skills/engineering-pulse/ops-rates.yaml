@@ -95,6 +95,9 @@ categories:
       - 'steps passed'
       - 'qa failed —'
       - 'qa passed'
+      - 'qa manual testing'   # added 2026-07-01: Liban's #919 heading format missed the list (false negative)
+      - 'manual testing –'
+      - 'manual testing —'
     min_length: 400
 
   # QA verdict detection (Fix 3, 2026-05-30). This is a CAPACITY signal (tickets
