@@ -9,7 +9,7 @@ metadata:
   tags: [productivity, performance-review, team-health, velocity, delegation, bounty]
   created: 2026-03-11
   updated: 2026-06-28
-argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--pre-invoice] [--draft|--payout]"
+argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--pre-invoice] [--payout-json] [--draft|--payout]"
 ---
 
 # Engineering Pulse — Contributor Productivity & Bounty Analysis
@@ -482,6 +482,47 @@ In addition to bounty (merged PRs), engineers earn for skill-assisted ops work t
 - **QA (Elvis):** never gets a PR-based statement. As a `retainer_role: qa` engineer he is measured on QA throughput (manual-QA + `qa-verdict` tickets tested) in Capacity & Invisible Work, not on PRs or shadow-bounty.
 - **Retainer engineers (`employment: retainer`):** never get a payable pre-invoice statement — the retainer does not stack with bounty. Their bounty + ops is computed as internal-only **shadow-bounty** (a floor, not a ceiling) and excluded from team total payable. The only thing ever shared with a retained engineer is the value note, never the shadow-bounty number.
 - **Engineers with PRs but no `engineers.yaml` entry:** team payout report counts their bounty; no statement file is written. The skill prints a one-line warning suggesting the user add them to `engineers.yaml` if they should be invoiced.
+
+### Machine-readable payout export (`--payout-json`)
+
+When the user passes `--payout-json` (in addition to `--pre-invoice`), also emit a single machine-readable file at `reports/payouts/<period>/payout.json` — the same numbers as the markdown statements, in a form a downstream tool can consume without parsing prose. This is what feeds the `vetted-invoices` static site (its local `publish.py` reads this file and writes the per-engineer invoice pages).
+
+**Keep this file consumer-agnostic.** It is keyed by GitHub login and knows nothing about invoice tokens, Netlify, or any specific site — that coupling lives entirely in the consumer. Do not add token/URL fields here.
+
+Shape: a JSON array, one object per engineer who got a statement (retainer engineers included — they invoice their flat retainer even though they get no *bounty* statement). Fields:
+
+```json
+[
+  {
+    "github": "daniella-mu",              // engineers.yaml primary key (join key downstream)
+    "display_name": "Daniella Mutai",
+    "employment": "bounty",               // "bounty" | "retainer"
+    "reference_code": "GC-ENG-2026-06-DM",// GC-ENG-… for bounty, GC-RET-… for retainer
+    "period_label": "June 2026 (1–30 June)",
+    "generated": "2026-06",               // the period key
+    "code_total": 30000,                  // bounty gross (net of struck rows)
+    "ops_total": 5385,
+    "net_total": 35385,                   // code_total + ops_total − applied_advance; the amount invoiced
+    "work":  [ {"title": "...", "repo": "nts", "tier": "L", "amt": 2000} ],
+    "tiers": [ {"tier": "S", "count": 40, "rate": 500, "subtotal": 20000} ],
+    "ops":   [ {"label": "PR Review (skill-assisted)", "count": 39, "rate": 40, "subtotal": 1560} ]
+  },
+  {
+    "github": "jush34",
+    "display_name": "Theophilus Juma",
+    "employment": "retainer",
+    "reference_code": "GC-RET-2026-06-TJ",
+    "period_label": "June 2026 (1–30 June)",
+    "generated": "2026-06",
+    "retainer_kes_month": 30000           // retainer people carry this instead of the bounty fields
+  }
+]
+```
+
+Rules that keep it faithful to the statements:
+- `net_total` already reflects any applied advance (same figure the engineer is told to invoice). `work`/`tiers` exclude struck (duplicate-suspect / setup-noise) rows, matching the statement.
+- Retainer engineers: emit `employment: "retainer"` + `retainer_kes_month`, and use the `GC-RET-…` reference code. Do **not** emit their shadow-bounty numbers here — the flat retainer is what they invoice.
+- Amounts are integers (KES). No currency symbols, no thousands separators.
 
 ## Bounty Rate Reference
 
