@@ -164,3 +164,53 @@ Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (ho
   1. [honest one-liner]
   2. [honest one-liner]
   3. [honest one-liner]
+
+---
+
+## 8. Build-Prompts Emission (epics only)
+
+After the tickets are written (and, ideally, after a `tech-review` pass so the "real work" insights are sharp), emit a **`BUILD-PROMPTS.md`** into the epic folder — one copy-paste kickoff prompt per ticket that a human pastes into a **fresh session** to build that ticket end-to-end.
+
+**Why this exists:** the Fizzy card / ticket file holds the *what* (the spec). It does NOT hold the *how to execute safely in this repo* — worktree + correct git identity, token discipline, red/green TDD, "the ticket is FINAL, don't re-groom," PR + `/pr-review` + stop. Those are harness-operating instructions; without them a cold session re-grooms the card, over-reads the codebase, commits with the wrong author, or skips tests. BUILD-PROMPTS is ~90% boilerplate (the rules-of-engagement block below) + ~10% per-ticket fill-ins you already have from writing the tickets.
+
+**When to emit (gate):**
+- **Epic with 3+ tickets** where the human will spin a fresh session per ticket → emit (offer it; default yes).
+- **1–2 tickets / a one-off quick fix** → SKIP. The card is enough; a BUILD-PROMPTS there is overkill. Say so.
+
+**Output:** `.claude/tickets/<epic-slug>/BUILD-PROMPTS.md`. Start with a short header: what it is (paste into a fresh session, `/clear` between, one ticket = one session = one PR), the **dependency/order** (strict chain vs independently-deployable + recommended first ticket), and a one-line note that each block is deliberately lean.
+
+**Per-ticket block template** — repeat verbatim per ticket (the repetition is INTENTIONAL: each block must be self-contained to paste cold). Fill the `<...>` slots from the ticket you just wrote:
+
+```
+Build Fizzy card #<N> (ticket <id>) end-to-end. The ticket is FINAL — groomed + tech-reviewed. Do NOT re-groom, re-plan, or re-review it.
+
+Spec: .claude/tickets/<epic-slug>/<ticket-file>.md
+Epic overview: EPIC.md / README.md in the same folder (only open it if you need it).
+
+Dependency: <None — independently deployable | Ticket <X> (#<M>) MERGED first>.
+
+Rules of engagement:
+- The ticket is the plan. Read that ONE spec file + the @-anchors it names. Nothing else up front.
+- Token discipline (a 1M window is not a licence to fill it): for any wider search, spawn an Explore subagent on haiku and take only its summary — never read whole large files or dump command output into this context. Keep the todo list tight; don't re-derive facts the ticket already states.
+- Work in a worktree off <base-branch>, and set the git identity BEFORE the first commit:
+    git worktree add -b <N>/<slug> .claude/worktrees/<N>-<slug> origin/<base-branch>
+    git -C .claude/worktrees/<N>-<slug> config user.email "tobi@venturefor.africa"
+    git -C .claude/worktrees/<N>-<slug> config user.name  "tobilafinhangit"
+- Follow the ticket's red/green TDD (invoke the test-driven-development skill): <the 1–2 concrete test seams from the ticket's Verification/DoD>. Write the failing test first, watch it fail for the right reason, then make the smallest change to green.
+- Hard constraint: <the ticket's load-bearing "do NOT change X" guardrail(s)>.
+- The real work: <1–2 lines — the non-obvious mechanism/risk the tech-review surfaced; where the agent should actually start>.
+- <Any deploy/migration caveat: edge fn → scripts/deploy-edge-fn.sh + env set + cold-start; migration → Dashboard SQL editor + schema_migrations registry insert + regen types.ts; RBAC → permission key in same migration + audit-rbac-drift.ts. Omit this line if n/a.>
+- Definition of Done = the ticket's Verification section. Also run: npx tsc -p tsconfig.app.json --noEmit.
+- When green: open a PR to <base-branch>, then run /pr-review against card #<N>. Stop and report — I handle QA/merge. Do NOT start the next ticket.
+
+Run this on Sonnet. /clear before the next ticket.
+```
+
+**Fill-in guidance:**
+- **`<N>/<slug>`** — reuse the repo branch convention (`<fizzy#>/<short-slug>`). If no Fizzy card yet, use `<verb>/<slug>`.
+- **Test seams** — lift the sharpest behavioral checks from the ticket's Verification section; name real functions/inputs, not "add tests."
+- **The real work** — the highest-value line. It's the one-sentence insight a `tech-review` or the writer's own sanity-check produced (the wrong data source, the double-mount, the two sources of truth). Without it the agent rediscovers it slowly.
+- **Model** — default "Run this on Sonnet" for execution work; only bump to Opus for a genuinely hard-reasoning ticket, and say why.
+- Keep each block lean — if it's longer than ~20 lines the ticket itself is under-specified; fix the ticket, not the prompt.
+
+**Do NOT** put pricing, KES, or tier payout in the build prompts. Tier lives in the ticket header only.
