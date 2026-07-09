@@ -1,7 +1,7 @@
 ---
 name: qa-handoff
 description: Hands off completed work to QA by merging the PR into the integration branch, posting a testing guide on the Fizzy card, moving it to the QA column, assigning Elvis, and syncing qa-mirror. Auto-detects per-repo conventions (integration branch, qa-mirror presence, Supabase migrations). Use after a PR is approved (or pushed direct) and ready for QA testing.
-version: 2.1.0
+version: 2.2.0
 license: MIT
 ---
 
@@ -54,7 +54,12 @@ Only needed if auto-detection picks the wrong value. Any field can be overridden
 }
 ```
 
-`stagingDbRef` is the Supabase project/branch ref whose database the **lovable-staging preview** points at (this repo: the persistent staging branch `tobsmmjzmlljtyikujlr`; prod is `lagvszfwsruniuinxdjb`). Set it so Step 3.5 can auto-apply the PR's migrations to the staging DB — the single biggest cause of "QA Failed for a non-code reason." If absent, Step 3.5 prompts the user instead of guessing.
+`stagingDbRef` is the Supabase project/branch ref whose database the staging preview points at. Set it so Step 3.5 can auto-apply the PR's migrations to the staging DB — the single biggest cause of "QA Failed for a non-code reason." If absent, Step 3.5 prompts the user instead of guessing. **Refs are per-repo — never hardcode one repo's ref for another.** Known refs:
+
+| Repo | Staging ref | Prod ref |
+|---|---|---|
+| Vetted (`vettedai-audition-supabase-version`) | `tobsmmjzmlljtyikujlr` | `lagvszfwsruniuinxdjb` |
+| Congrats (`vetted-congrats-Flow*`, `backend-restructing`) | `prpnmonpildkfajgrepb` (persistent `dev` branch of prod) | `uvszvjbzcvkgktrvavqe` |
 
 If the file is missing, the skill uses auto-detected values. Don't create one unless you need it.
 
@@ -311,6 +316,36 @@ with qa-mirror sync (Step 9).
 - If the user can't deploy right now (e.g. CI pipeline busy, env access pending), they can answer "skip" and the skill continues with a loud warning in the Step 10 confirmation. Don't silently allow skipping.
 - Do not run the deploy command yourself — deploys are user-authorized actions. The skill prompts and waits.
 
+### Step 8.6: Deployed-Where-QA-Tests Gate (backend/API route changes)
+
+**This closes the hole that put 4 cards in QA-Failed at once (Congrats sweep, 2026-07-09).** All four were correct code that failed QA for one reason: the change was on the integration branch but **not deployed to the environment QA actually tested** — two backend Express routes never shipped to prod (`main`), so the live URL 404'd, and QA (testing prod) marked them failed. Steps 3.5 (migrations) and 8.5 (edge fns) cover *their* deploy surfaces; this step covers the **backend/API + separately-deployed-frontend** surface they miss.
+
+Applies when the PR diff touches code that is served by a **separately-deployed runtime** rather than the branch preview — most commonly a backend repo (`backend-restructing`: Express on Vercel, prod deploys from `main`) or any route/endpoint whose live home is a fixed prod domain, not the lovable-staging/qa-mirror preview.
+
+```bash
+# Does this handoff touch backend/API route code (not just frontend served by the preview)?
+ROUTE_CHANGES=$(gh pr diff {NUMBER} --name-only | grep -iE '(routes?|controller|api|middleware)\.(js|ts)$' )
+```
+
+**If `ROUTE_CHANGES` is non-empty, before handing off you MUST answer: "will QA hit this new code where they test?"**
+
+1. **Identify QA's test target for this change.** Backend routes for the Congrats/Vetted stack live at a fixed prod domain (e.g. `backend-restructing-ten.vercel.app`, per `backend-production-url.md`) — NOT the lovable-staging preview. A backend route on the integration branch is invisible to QA until it ships to `main` and Vercel deploys.
+2. **Check whether the change is actually in that target.** For a backend repo whose prod deploys from `main`:
+   ```bash
+   MERGE_SHA=$(gh pr view {NUMBER} --json mergeCommit --jq '.mergeCommit.oid')
+   git fetch origin main --quiet
+   git merge-base --is-ancestor "$MERGE_SHA" origin/main && echo "IN PROD (main)" || echo "NOT IN PROD — integration only"
+   ```
+   And, when the route is HTTP-reachable, curl the live endpoint to confirm (a 404 = not deployed):
+   ```bash
+   curl -sI "https://<prod-domain>/<new-route>" | head -1
+   ```
+3. **Route the handoff on the result:**
+   - **In prod already** → normal path; note the live-URL check passed in the QA comment.
+   - **Integration only (prod deploys from main)** → this is NOT a normal QA-handoff. The change won't reach QA without a prod ship. STOP and tell the user: either (a) it rides the next staging→main release (`/merge-to-prod`), or (b) if it's independent and urgent, a targeted cherry-pick to `main` (`/hotfix`-style). Do not move the card to QA claiming it's testable when the live endpoint 404s — that reproduces the exact false-fail this gate exists to prevent.
+
+**Guardrail:** the tell for this whole bug class is *"correct code, marked QA-Failed."* Whenever a card is about to go to QA, the load-bearing question is not "is it merged?" but **"is it live in the environment the tester will open?"** — for migrations (Step 3.5), edge fns (Step 8.5), and now backend/API routes (this step).
+
 ### Step 9: Sync qa-mirror (skip if `qaMirrorBranch` not detected)
 
 `qa-mirror` points at the live production DB and must reflect the integration branch. Sync after every handoff.
@@ -345,6 +380,7 @@ QA Handoff Complete:
 - ✅ Card moved to "{QA_COLUMN_NAME}" column
 - ✅ Elvis Muchiri assigned (or: already assigned — skipped)
 - ✅ qa-mirror synced with {INTEGRATION_BRANCH} (or: already up to date / no qa-mirror in this repo)
+- ✅ Deployed where QA tests (migrations on staging / edge fns / backend routes live in prod — or: N/A, no such changes)
 - 🔗 PR: {PR_URL}
 ```
 
