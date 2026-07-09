@@ -121,8 +121,8 @@ Used by Inputs to resolve the board + QA-Failed column per repo. Match by repo d
 | Repo directory name | Board | Board ID | QA-Failed Column ID |
 |---|---|---|---|
 | `vettedai-audition-supabase-version` | Vetted | `03faozjl3gdngcoyzpkr4vf87` | `03frpj9rn7vrewpk1y6rtcoj8` |
-| `vetted-congrats-Flow-GENEROUS` | Congrats | `03f58rc5c48jorujpxqp5da5b` | *(lookup by name on first run)* |
-| `backend-restructing` | Congrats (shared) | `03f58rc5c48jorujpxqp5da5b` | *(lookup by name on first run)* |
+| `vetted-congrats-Flow-GENEROUS` | Congrats | `03f58rc5c48jorujpxqp5da5b` | `03fpbfy9f4gbxq037o9n9z2rb` |
+| `backend-restructing` | Congrats (shared) | `03f58rc5c48jorujpxqp5da5b` | `03fpbfy9f4gbxq037o9n9z2rb` |
 
 If no row matches: ask the user which board, then list its columns to find the QA-Failed one.
 
