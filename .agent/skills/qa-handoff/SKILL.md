@@ -346,6 +346,29 @@ ROUTE_CHANGES=$(gh pr diff {NUMBER} --name-only | grep -iE '(routes?|controller|
 
 **Guardrail:** the tell for this whole bug class is *"correct code, marked QA-Failed."* Whenever a card is about to go to QA, the load-bearing question is not "is it merged?" but **"is it live in the environment the tester will open?"** — for migrations (Step 3.5), edge fns (Step 8.5), and now backend/API routes (this step).
 
+### Step 8.7: qa-mirror Drift Detector (skip if `qaMirrorBranch` not detected)
+
+**This is the sentinel for the "qa-mirror got used as a scratch branch" failure class.** `qa-mirror` must equal the integration branch **plus nothing** — but people occasionally merge a feature branch *directly into qa-mirror* to test against prod data ("...into qa-mirror for QA testing", "...for impersonation repro") and never clean it up. Each such merge leaves a **non-merge commit unique to qa-mirror** that never reached the integration branch → off the promotion path → silently at risk of never reaching prod. One such orphan (a `#1850` admin-gate fix) sat latent for days and masked a real access regression (2026-07-11 cleanup). Nothing *triggers* a check, so the drift is invisible until it's painful. This step is that trigger — read-only, cheap, runs every handoff.
+
+Run **before** the Step 9 merge (so a fresh sync merge doesn't obscure pre-existing orphans). `git cherry` compares by patch-id, so already-promoted commits (even under a different SHA) don't false-positive:
+
+```bash
+git fetch origin $QA_MIRROR_BRANCH $INTEGRATION_BRANCH --quiet
+# '+' = a patch on qa-mirror NOT present on the integration branch; '-' = already there.
+ORPHANS=$(git cherry origin/$INTEGRATION_BRANCH origin/$QA_MIRROR_BRANCH 2>/dev/null \
+  | grep '^+' | while read -r _ sha; do
+      git log -1 --no-merges --format='%h %s' "$sha" 2>/dev/null
+    done)
+if [ -n "$ORPHANS" ]; then
+  echo "⚠ qa-mirror DRIFT — non-merge commits unique to qa-mirror (never reached $INTEGRATION_BRANCH):"
+  echo "$ORPHANS"
+fi
+```
+
+**On finding orphans:** do NOT auto-fix and do NOT block the handoff — surface them to the user with one line: *"qa-mirror has N commit(s) that never reached the integration branch (likely direct-to-qa-mirror test merges). Each is off the promotion path. Want me to triage them (backport the real ones / discard the throwaway) separately, or proceed with the handoff?"* Resolution is a human per-commit decision (some are real unshipped work, some are throwaway `for QA testing`/`for repro` scaffolding), never a blind reset. See `.claude/rules/working-branch.md` (qa-mirror = integration + nothing) and the `qa-mirror-backup-<date>` tag convention for the safe reset flow. If the user says proceed, continue to Step 9 and note the deferred drift in the Step 10 confirmation.
+
+If `git cherry` returns no `+` lines: qa-mirror is clean (integration + nothing) — note "✅ qa-mirror clean (no drift)" and continue.
+
 ### Step 9: Sync qa-mirror (skip if `qaMirrorBranch` not detected)
 
 `qa-mirror` points at the live production DB and must reflect the integration branch. Sync after every handoff.
@@ -380,6 +403,7 @@ QA Handoff Complete:
 - ✅ Card moved to "{QA_COLUMN_NAME}" column
 - ✅ Elvis Muchiri assigned (or: already assigned — skipped)
 - ✅ qa-mirror synced with {INTEGRATION_BRANCH} (or: already up to date / no qa-mirror in this repo)
+- ✅ qa-mirror drift check: clean (or: ⚠ N orphan commit(s) surfaced — deferred per user)
 - ✅ Deployed where QA tests (migrations on staging / edge fns / backend routes live in prod — or: N/A, no such changes)
 - 🔗 PR: {PR_URL}
 ```
