@@ -1,7 +1,7 @@
 ---
 name: qa-handoff
-description: Hands off completed work to QA by merging the PR into the integration branch, posting a testing guide on the Fizzy card, moving it to the QA column, assigning Elvis, and syncing qa-mirror. Auto-detects per-repo conventions (integration branch, qa-mirror presence, Supabase migrations). Use after a PR is approved (or pushed direct) and ready for QA testing.
-version: 2.2.0
+description: Hands off completed work to QA by merging the PR into the integration branch, posting a testing guide on the Fizzy card, moving it to the QA column, assigning Elvis, and syncing qa-mirror. Detects a re-handoff (a card QA previously failed) and requires a point-by-point "what changed since your fail" reply. Auto-detects per-repo conventions (integration branch, qa-mirror presence, Supabase migrations). Use after a PR is approved (or pushed direct) and ready for QA testing, or after fixing a QA-failed card.
+version: 2.3.0
 license: MIT
 ---
 
@@ -16,7 +16,8 @@ After a PR is approved (or a direct push to integration is done), hand it off to
 - After a PR is approved and ready for QA (skill will merge it)
 - After committing and pushing directly to the repo's integration branch (skill will skip the merge step)
 - After a PR verification + fix cycle
-- When the user says "hand this to QA", "move to QA", "ready for testing"
+- **After fixing a card that QA previously failed** — this is a **re-handoff**, see Step 0 (the skill detects it and adds a required "what changed since your fail" reply)
+- When the user says "hand this to QA", "move to QA", "ready for testing", "back to QA", "re-test this"
 
 ## Required Input
 
@@ -64,6 +65,78 @@ Only needed if auto-detection picks the wrong value. Any field can be overridden
 If the file is missing, the skill uses auto-detected values. Don't create one unless you need it.
 
 ## Workflow
+
+### Step 0: Re-Handoff Detection — Did QA Already Fail This Card?
+
+**This closes the "silent bounce-back" hole that stalled 7 cards at once (Vetted, 2026-07-16).** Every gate in this skill (3.5, 8.5, 8.6) protects the *first* handoff. Nothing protected the **return trip**: a card QA-failed, the owner fixed it, moved it back to the QA column — and posted **no comment saying what changed**. From the tester's seat the column says "test me" while the last note in the thread is *their own unanswered failure report*. They can't tell "fixed, re-test" from "column moved, nothing done", so they stall and escalate. All 7 cards had real fixes already shipped; the only missing artifact was a reply. **A bounce-back without a reply is not a handoff.**
+
+Run this **first**, before anything else. It's read-only and cheap.
+
+```bash
+# Does this card have a prior QA-fail in its history?
+COMMENTS=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0")
+
+# OWNER = whoever is doing this handoff (you). Excluded so the detector can't
+# match your OWN reply — a reply quoting "your 2026-07-14 FAIL" is an ANSWER to a
+# fail, not a new one. Self-matching makes every card look permanently re-failed.
+OWNER="Tobi Lafinhan"
+
+echo "$COMMENTS" | OWNER="$OWNER" python3 -c "
+import json,sys,re,os
+owner=os.environ['OWNER']
+cs=json.load(sys.stdin)
+# A real fail = a verdict from the TESTER, not a System move-line and not your reply.
+# Require an explicit verdict marker; ⏳/blocked/'needs info' is NOT a fail.
+VERDICT = re.compile(r'status:\s*(❌|⛔|\bFAIL\b)|^\s*(❌|⛔)|\bstatus\b.{0,12}\bFAIL\b', re.I|re.M)
+fails=[]
+for c in cs:
+    b=c.get('body') or {}
+    txt=b.get('plain_text','') if isinstance(b,dict) else str(b)
+    who=(c.get('creator') or {}).get('name','?')
+    when=(c.get('created_at') or '')[:10]
+    if who==owner or who=='System':   # skip own replies + move-lines
+        continue
+    if VERDICT.search(txt):
+        fails.append((when, who, re.sub(r'\s+',' ',txt).strip()))
+if fails:
+    when, who, txt = fails[-1]
+    print('RE-HANDOFF: prior QA-fail —', when, 'by', who)
+    print('LATEST FAIL:', txt[:600])
+else:
+    print('FIRST HANDOFF: no unanswered QA-fail from a tester')
+"
+```
+
+**Detector guardrails (each of these was a real false-positive when this step was first tested):**
+- **Exclude your own comments.** A reply that says *"answering your 2026-07-14 FAIL"* contains the word FAIL. Match on it and the card looks re-failed forever.
+- **Exclude `System`.** `"Elvis moved this to QA Failed"` is a move-line — it proves a fail happened but carries none of the findings. Use the tester's own report as the source; the System line is at best a fallback signal that one exists.
+- **A blocker is not a fail.** `Status: ⏳ BLOCKED on X` / "need info" means *can't test yet*, not *this is broken*. Requiring an explicit `❌`/`⛔`/`Status: FAIL` verdict keeps those out.
+- Detector says FIRST HANDOFF but you know QA bounced it? Trust the thread over the regex — read it and treat it as a re-handoff.
+
+**If no prior fail → first handoff.** Continue to Step 1 normally; Step 0 is done.
+
+**If a prior fail exists → this is a RE-HANDOFF.** Two things become mandatory:
+
+1. **Read the tester's failure report in full and enumerate every distinct finding.** Not a skim — a list. Each finding gets an explicit disposition, and only three are valid:
+   - **Fixed** — cite the *evidence*: commit SHA, PR number, deployed fn version + date, or a verifying query result. Never "should be fine now."
+   - **Not a bug — the premise was wrong** — say *why* the expectation was mistaken, and correct the record. (Real example: a guide said "all 4 email templates must carry the FAQ token"; d3/d9 are a short nudge and a final-note closer — an FAQ block there is off-tone, so their lacking it was correct by design, not a partial migration. The tester's fail was sound *given the guide*; the guide was wrong.)
+   - **Won't fix / out of scope** — say so plainly and why, so it isn't re-tested.
+2. **The Step 5 QA comment MUST open with a "What changed since your fail" block** answering those findings point-by-point, before any test steps. This is the artifact whose absence caused the stall.
+
+**Verify each "fixed" claim against ground truth before writing it** — the whole point is that the tester couldn't verify it themselves. Match the evidence to the failure class:
+
+| Their fail was… | Prove the fix with |
+|---|---|
+| "label/copy still says X" | `git grep -n "<new string>" origin/$INTEGRATION_BRANCH -- <file>` → cite file + line |
+| "migration/RPC not deployed" | Call the RPC with the new param. `PGRST202` = still old signature; **any other error (incl. an auth/permission error) = the param exists and arg-parsing passed** |
+| "edge fn not deployed" | Management API `/v1/projects/<ref>/functions` → compare fn `updated_at` vs the PR merge time. Deploy-after-merge = live. **You cannot grep the deployed body** — Supabase ships edge fns as a compressed **ESZIP2** archive; source symbols don't survive. Say so rather than claiming a byte-match |
+| "DB rows missing / cron hasn't run" | Run their exact query yourself and paste the real row count |
+| "template/config content wrong" | Read the live row. **Confirm the column name first** — a typo'd column returns `42703` and a `select=*` "no match" reads exactly like "the feature is missing" |
+
+**Guardrail — don't fix the tester's finding by moving the card.** If a finding is still real, the card does not go back to QA. Fix it first, or leave it in QA Failed with a note on what's outstanding. The QA column means *testable now*.
+
+**Guardrail — stale guides.** If the implementation changed *after* the original testing guide was posted, the old guide is invalid and the tester's fail may be an artifact of it (they tested what you told them to test). Don't just answer the findings — **supersede the guide**: post a fresh one built from the *current* live state, and say explicitly that it replaces the earlier one.
 
 ### Step 1: Gather Context
 
@@ -171,12 +244,29 @@ Do NOT use \`supabase db push\` — migration files may have been edited after f
 
 Post an HTML comment to the Fizzy card. Must include:
 
+0. **"What changed since your fail"** — **REQUIRED if Step 0 flagged a re-handoff.** Goes first, before the summary. One row per finding from the tester's report, each with its disposition + evidence (see Step 0). Omitting this block is the failure this skill exists to prevent — a re-handoff without it is not a handoff.
 1. **Summary table** — one row per change (what, why)
 2. **Migration check** — "applied to staging" confirming SELECT block (only if migrations present; the skill already applied them in Step 3.5)
 3. **Code verification** — CLI commands (tsc, lint)
 4. **UI testing steps** — step-by-step per change, specific viewports/flows
 5. **Regression checks** — checklist of related flows that must not break
 6. **What was NOT changed** — guardrails / files explicitly untouched
+
+**Re-handoff block (when Step 0 flagged a prior fail) — lead with it:**
+
+```html
+<h4>✅ What changed since your fail</h4>
+<p>Answering your {DATE} review point-by-point:</p>
+<table border="1" cellpadding="4">
+  <tr><th>Your finding</th><th>Status</th><th>Evidence</th></tr>
+  <tr><td>Label still read "Growth Areas"</td><td>✅ Fixed</td>
+      <td>Landed after your review in <code>95272ab7</code>; <code>InterviewReflectionCard.tsx</code> line 126 now reads "What to probe next"</td></tr>
+  <tr><td>d3/d9 missing the FAQ token</td><td>☑️ Not a bug — premise was wrong</td>
+      <td>FAQ block belongs on d0+d5 only; d3 is a short nudge, d9 the final-note closer. The old guide's "all 4" expectation was incorrect — superseded below.</td></tr>
+</table>
+```
+
+Use `✅ Fixed` / `☑️ Not a bug — premise was wrong` / `⏭️ Won't fix (out of scope)` as the only three dispositions. Every row cites evidence, never "should be fine now."
 
 **Migration block (when applicable) — the skill already applied to staging in Step 3.5, so this CONFIRMS rather than asks:**
 
@@ -398,8 +488,9 @@ If `qa-mirror` is already up to date: skip and note it.
 
 ```
 QA Handoff Complete:
+- ✅ Handoff type: first handoff (or: RE-HANDOFF — answered N finding(s) from {TESTER}'s {DATE} fail)
 - ✅ PR #{NUMBER} merged into {INTEGRATION_BRANCH} (or: already merged / direct push)
-- ✅ QA comment posted on Fizzy #{CARD}
+- ✅ QA comment posted on Fizzy #{CARD} (re-handoff: includes the "what changed since your fail" block)
 - ✅ Card moved to "{QA_COLUMN_NAME}" column
 - ✅ Elvis Muchiri assigned (or: already assigned — skipped)
 - ✅ qa-mirror synced with {INTEGRATION_BRANCH} (or: already up to date / no qa-mirror in this repo)

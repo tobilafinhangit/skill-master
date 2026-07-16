@@ -131,5 +131,5 @@ If no row matches: ask the user which board, then list its columns to find the Q
 ## Related
 - `/pr-review` — the right tool for class 5 once you've cut the fix PR (and for genuinely re-reviewing a single PR). One branch of this skill, not the whole thing.
 - `/impact-analysis` — use it in Phase 3 for any class-5 migration/CHECK/domain change.
-- `/qa-handoff`, `/merge-to-prod` — the downstream steps once a card is genuinely cleared.
+- `/qa-handoff`, `/merge-to-prod` — the downstream steps once a card is genuinely cleared. **Sending a card back to the QA column always goes through `/qa-handoff`, never a bare `triage.json` move** — its Step 0 detects the prior fail and requires the point-by-point "what changed since your fail" reply. A silent bounce-back leaves the tester staring at their own unanswered fail report and stalls the card (7 cards at once, Vetted 2026-07-16).
 - Rules leaned on: `soft-gate-ui-hard-gate-wallet.md`, `committed-not-deployed-edge-fn.md`, `project_lovable_staging_rewrite_drops_prs`, `migration-and-writer-deploy-atomically.md`, `migration-impact-analysis-writers.md`, `fizzy-api-patterns.md`.
