@@ -1,7 +1,7 @@
 ---
 name: qa-handoff
 description: Hands off completed work to QA by merging the PR into the integration branch, posting a testing guide on the Fizzy card, moving it to the QA column, assigning Elvis, and syncing qa-mirror. Detects a re-handoff (a card QA previously failed) and requires a point-by-point "what changed since your fail" reply. Auto-detects per-repo conventions (integration branch, qa-mirror presence, Supabase migrations). Use after a PR is approved (or pushed direct) and ready for QA testing, or after fixing a QA-failed card.
-version: 2.3.0
+version: 2.3.1
 license: MIT
 ---
 
@@ -86,32 +86,38 @@ echo "$COMMENTS" | OWNER="$OWNER" python3 -c "
 import json,sys,re,os
 owner=os.environ['OWNER']
 cs=json.load(sys.stdin)
-# A real fail = a verdict from the TESTER, not a System move-line and not your reply.
-# Require an explicit verdict marker; ⏳/blocked/'needs info' is NOT a fail.
+# TWO independent fail signals. The move is authoritative; the verdict text is a
+# backstop for testers who report a fail without moving the card.
 VERDICT = re.compile(r'status:\s*(❌|⛔|\bFAIL\b)|^\s*(❌|⛔)|\bstatus\b.{0,12}\bFAIL\b', re.I|re.M)
-fails=[]
-for c in cs:
+MOVED_FAIL = re.compile(r'moved this to .QA Failed.', re.I)
+signal=None; findings=None
+for c in cs:                      # chronological — last signal wins
     b=c.get('body') or {}
     txt=b.get('plain_text','') if isinstance(b,dict) else str(b)
     who=(c.get('creator') or {}).get('name','?')
     when=(c.get('created_at') or '')[:10]
-    if who==owner or who=='System':   # skip own replies + move-lines
+    if who=='System':
+        if MOVED_FAIL.search(txt): signal=('moved to QA Failed', when)
         continue
-    if VERDICT.search(txt):
-        fails.append((when, who, re.sub(r'\s+',' ',txt).strip()))
-if fails:
-    when, who, txt = fails[-1]
-    print('RE-HANDOFF: prior QA-fail —', when, 'by', who)
-    print('LATEST FAIL:', txt[:600])
+    if who==owner: continue       # never match your own reply
+    if VERDICT.search(txt): signal=('explicit FAIL verdict', when)
+    if signal: findings=(when, who, re.sub(r'\s+',' ',txt).strip())
+if signal:
+    print('RE-HANDOFF: prior QA-fail —', signal[1], 'via', signal[0])
+    if findings:
+        print('TESTER REPORT (' + findings[0] + ', ' + findings[1] + '):', findings[2][:600])
+    else:
+        print('NOTE: card was bounced but the tester left no written report — ask them what failed.')
 else:
     print('FIRST HANDOFF: no unanswered QA-fail from a tester')
 "
 ```
 
-**Detector guardrails (each of these was a real false-positive when this step was first tested):**
+**Detector guardrails (each of these was a real false-positive/miss when this step was tested against live cards):**
 - **Exclude your own comments.** A reply that says *"answering your 2026-07-14 FAIL"* contains the word FAIL. Match on it and the card looks re-failed forever.
-- **Exclude `System`.** `"Elvis moved this to QA Failed"` is a move-line — it proves a fail happened but carries none of the findings. Use the tester's own report as the source; the System line is at best a fallback signal that one exists.
-- **A blocker is not a fail.** `Status: ⏳ BLOCKED on X` / "need info" means *can't test yet*, not *this is broken*. Requiring an explicit `❌`/`⛔`/`Status: FAIL` verdict keeps those out.
+- **A `System` "moved this to QA Failed" line IS a fail signal — and the authoritative one.** It carries no findings, so it can't be your *source* for what broke (use the tester's comment for that), but it is definitive proof the card was bounced. **Detecting on verdict text alone misses real bounce-backs** (verified 2026-07-16: 3 of 6 stalled cards missed — Elvis wrote `Status: ⏳ still not deploy-confirmed` and `Status: ⚠️ BLOCKED`, then moved all three to QA Failed anyway). Treat the move as the trigger; treat the text as the content.
+- **A blocker in the *text* is not a fail — but a blocker that got *moved* is.** `Status: ⏳ BLOCKED on X` means "can't test yet"; if the tester left the card in the QA column it isn't a re-handoff (they're waiting on you, answer them and move on). If they moved it to QA Failed, it's a bounce regardless of how gently it's worded. **Trust the move over the wording** — testers' verdict vocabulary varies; the column move is unambiguous.
+- **A bounce with no written report** is possible (move-line, no comment). Don't invent findings — ask the tester what failed.
 - Detector says FIRST HANDOFF but you know QA bounced it? Trust the thread over the regex — read it and treat it as a re-handoff.
 
 **If no prior fail → first handoff.** Continue to Step 1 normally; Step 0 is done.
