@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+#
+# fizzy-file-card — create a Fizzy card and PROVE it landed on a board.
+#
+# WHY THIS EXISTS
+# ---------------
+# `column_id` on card CREATE is silently ignored by the Fizzy API. The card is
+# created (201) with `column == null` — the invisible "Maybe?" lane, which
+# appears on NO board. A card filed specifically so it wouldn't be forgotten is
+# then invisible from the moment of creation. This is the API's shape, not a
+# mistake we keep making: `fizzy card create` has no --column flag either.
+#
+# Verified 5/5 (Congrats #2161, 2026-07-17) and 3/3 (audition #1575/#1576/#1578,
+# 2026-06-22). Cards #2128 and #2161 both floated. Prose has documented this in
+# .claude/rules/fizzy-api-patterns.md and failed to prevent it twice, because
+# prose cannot fail — it can only be not-read.
+#
+# This script CAN fail. It creates, triages, re-reads, and exits NON-ZERO if the
+# card is still floating. That is the entire point: it is the only enforcement
+# mechanism structurally available here. (An unfiled loose end leaves no git
+# artifact, so no CI check can ever catch one — but a *created* card is an
+# artifact you can inspect. This inspects it.)
+#
+# USAGE
+#   fizzy-file-card --board <id> --column <id> --title "..." [--description-file <path>]
+#   fizzy-file-card --board <id> --column <id> --title "..." [--description "<p>html</p>"]
+#   fizzy-file-card --list-columns --board <id>     # discover column IDs
+#
+# Exit codes:
+#   0  card created AND verified on a board
+#   1  usage / precondition error (no token, bad args)
+#   2  create failed
+#   3  CARD CREATED BUT STILL FLOATING (triage failed) — card number is printed;
+#      it exists and needs a manual triage. Never silently swallowed.
+#
+# NOTES
+#   - Description is HTML, not markdown. Fizzy renders markdown as a blob.
+#   - Token: $FIZZY_API_TOKEN, else read from a repo's .env.tokens / .env.local.
+#   - Every endpoint needs the .json suffix; bare routes 401 with a bearer token.
+#   - User-Agent is mandatory (401 without it).
+#
+set -euo pipefail
+
+ACCOUNT="${FIZZY_ACCOUNT:-6102589}"
+UA="VettedAI/1.0"
+API="https://app.fizzy.do"
+
+die() { echo "❌ $*" >&2; exit "${2:-1}"; }
+
+# --- token: env first, then walk known repo env files -----------------------
+find_token() {
+  if [[ -n "${FIZZY_API_TOKEN:-}" ]]; then printf '%s' "$FIZZY_API_TOKEN"; return; fi
+  local f
+  for f in \
+    "$PWD/congrats/.env.tokens" "$PWD/.env.tokens" \
+    "$PWD/congrats/.env.local"  "$PWD/.env.local" \
+    "$HOME/code/repos/vetted-congrats-Flow-GENEROUS/congrats/.env.tokens" \
+    "$HOME/code/repos/vetted-congrats-Flow-GENEROUS/congrats/.env.local" \
+    "$HOME/code/repos/vettedai-audition-supabase-version/.env.local" \
+    "$HOME/code/repos/backend-restructing/.env.local"
+  do
+    [[ -f "$f" ]] || continue
+    local t
+    t=$(grep -E '^FIZZY_API_TOKEN=' "$f" 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"'" | tr -d '[:space:]')
+    [[ -n "$t" ]] && { printf '%s' "$t"; return; }
+  done
+}
+
+BOARD=""; COLUMN=""; TITLE=""; DESC=""; DESC_FILE=""; LIST_COLUMNS=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --board)            BOARD="$2"; shift 2 ;;
+    --column)           COLUMN="$2"; shift 2 ;;
+    --title)            TITLE="$2"; shift 2 ;;
+    --description)      DESC="$2"; shift 2 ;;
+    --description-file) DESC_FILE="$2"; shift 2 ;;
+    --list-columns)     LIST_COLUMNS=1; shift ;;
+    -h|--help)          sed -n '2,40p' "$0"; exit 0 ;;
+    *) die "unknown flag: $1" ;;
+  esac
+done
+
+TOKEN="$(find_token)"
+[[ -n "$TOKEN" ]] || die "no FIZZY_API_TOKEN (env or .env.tokens/.env.local)"
+
+auth=(-H "Authorization: Bearer $TOKEN" -H "User-Agent: $UA")
+json=(-H "Content-Type: application/json")
+
+# --- --list-columns ---------------------------------------------------------
+if [[ "$LIST_COLUMNS" -eq 1 ]]; then
+  [[ -n "$BOARD" ]] || die "--list-columns needs --board <id>"
+  curl -s "$API/$ACCOUNT/boards/$BOARD/columns.json" "${auth[@]}" \
+    | python3 -c 'import sys,json;[print(c["id"],"|",c["name"]) for c in json.load(sys.stdin)]'
+  exit 0
+fi
+
+[[ -n "$BOARD"  ]] || die "--board is required (use --list-columns to discover)"
+[[ -n "$TITLE"  ]] || die "--title is required"
+[[ -n "$COLUMN" ]] || die "--column is required — a card without one lands in the invisible Maybe pile, which is the whole reason this script exists"
+
+if [[ -n "$DESC_FILE" ]]; then
+  [[ -f "$DESC_FILE" ]] || die "--description-file not found: $DESC_FILE"
+  DESC="$(cat "$DESC_FILE")"
+fi
+
+# --- 1. create --------------------------------------------------------------
+payload=$(python3 -c '
+import json,sys
+print(json.dumps({"card":{"title":sys.argv[1],"description":sys.argv[2]}}))' "$TITLE" "$DESC")
+
+headers=$(curl -s -D - -o /dev/null -X POST "$API/$ACCOUNT/boards/$BOARD/cards.json" \
+  "${auth[@]}" "${json[@]}" -d "$payload")
+
+status=$(printf '%s' "$headers" | head -1 | awk '{print $2}')
+[[ "$status" == "201" ]] || { printf '%s\n' "$headers" | head -5 >&2; die "create failed (HTTP $status)" 2; }
+
+CARD=$(printf '%s' "$headers" | grep -i '^location:' | sed 's|.*/cards/||; s|\.json.*||' | tr -cd '0-9')
+[[ -n "$CARD" ]] || die "created but could not parse card number from Location header" 2
+echo "✅ created #$CARD"
+
+# --- 2. triage (the step the API will not do for you) -----------------------
+tstatus=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/$ACCOUNT/cards/$CARD/triage.json" \
+  "${auth[@]}" "${json[@]}" -d "$(python3 -c 'import json,sys;print(json.dumps({"column_id":sys.argv[1]}))' "$COLUMN")")
+[[ "$tstatus" == "204" ]] || echo "⚠️  triage returned HTTP $tstatus (expected 204)" >&2
+
+# --- 3. VERIFY — re-read and assert. This is the part that can fail. --------
+col=$(curl -s "$API/$ACCOUNT/cards/$CARD.json" "${auth[@]}" | python3 -c '
+import sys,json
+c=json.load(sys.stdin); col=c.get("column")
+print(col.get("name") if isinstance(col,dict) else (col or ""))')
+
+if [[ -z "$col" ]]; then
+  echo "❌ card #$CARD IS FLOATING IN THE MAYBE PILE — created but on no board." >&2
+  echo "   It exists and is invisible. Triage it manually:" >&2
+  echo "   curl -X POST '$API/$ACCOUNT/cards/$CARD/triage.json' -H 'Authorization: Bearer \$FIZZY_API_TOKEN' -H 'User-Agent: $UA' -H 'Content-Type: application/json' -d '{\"column_id\":\"$COLUMN\"}'" >&2
+  exit 3
+fi
+
+echo "✅ verified #$CARD is in column: $col"
+echo "   $API/$ACCOUNT/cards/$CARD.json"
