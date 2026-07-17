@@ -9,16 +9,23 @@ Interact with the team's Fizzy boards directly via the REST API using `curl` or 
 
 ## Authentication
 
-All requests require a Bearer token. Read from the user's environment:
+All requests require a Bearer token. **It is NOT in the shell environment by default** — a bare
+`echo $FIZZY_API_TOKEN` prints nothing. Read it from the repo's gitignored env file first:
 
 ```bash
-# Token is in the user's shell environment
-echo $FIZZY_API_TOKEN
+# Congrats: congrats/.env.tokens  (NOT .env.local — Vercel overwrites that file)
+# Audition/backend: .env.local
+TOKEN=$(grep -E '^FIZZY_API_TOKEN=' congrats/.env.tokens | head -1 | cut -d= -f2- | tr -d "\"'" | tr -d '[:space:]')
 ```
 
-Header: `Authorization: Bearer $FIZZY_API_TOKEN`
+**Two headers are mandatory on every request:**
 
-> **NEVER hardcode the token.** Always reference `$FIZZY_API_TOKEN`.
+| Header | Why |
+|---|---|
+| `Authorization: Bearer $TOKEN` | auth |
+| `User-Agent: VettedAI/1.0` | **401 without it** — and the 401 looks exactly like a bad token |
+
+> **NEVER hardcode the token.** Always read it from the env file.
 
 ## API Base URL
 
@@ -45,13 +52,20 @@ Account slug: `6102589`
 Create a bug card on the Bugs board.
 
 **Steps:**
-1. Get the Bugs board ID (list boards if needed)
-2. Create a card with the description as title + body
-3. Add the `bug` tag if available
-4. Return the card URL
+1. Use the Bugs board ID from the table above (no need to list boards)
+2. Pick the target column: `fizzy-file-card --list-columns --board 03fl735hqcd0h1pettl8o94oo`
+3. File it with the helper — it creates, triages, **re-reads, and exits non-zero if the card
+   is still floating** (see [Create Card](#create-card) for why that last step is mandatory):
+   ```bash
+   fizzy-file-card --board 03fl735hqcd0h1pettl8o94oo --column <col> \
+     --title "..." --description-file body.html
+   ```
+   Filing by raw curl instead? You **must** create → triage → verify yourself.
+4. Add the `bug` tag if available
+5. Return the card URL
 
 ### `/fizzy feature [description]`
-Create a feature card on the Product board.
+Create a feature card on the Product board. Same create → triage → **verify** requirement.
 
 ### `/fizzy status`
 Show all open cards assigned to the current user across all boards.
@@ -81,7 +95,7 @@ Create a new board with the standard engineering column structure (matches Vette
 1. Source the token: `source .env.local`
 2. Create the board:
 ```bash
-LOCATION=$(curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards" \
+LOCATION=$(curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -101,7 +115,7 @@ for COL in \
   '{"column":{"name":"QA Failed","color":"var(--color-card-2)"}}' \
   '{"column":{"name":"QA to be confirmed","color":"var(--color-card-5)"}}' \
   '{"column":{"name":"Merge to Prod","color":"var(--color-card-7)"}}'; do
-  curl -s -X POST "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns" \
+  curl -s -X POST "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json" \
@@ -110,7 +124,7 @@ done
 ```
 4. Confirm columns were created:
 ```bash
-curl -s "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns" \
+curl -s "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Accept: application/json"
 ```
@@ -156,14 +170,14 @@ curl -s "https://fizzy.do/my/identity" \
 
 ### List Boards
 ```bash
-curl -s "https://app.fizzy.do/6102589/boards" \
+curl -s "https://app.fizzy.do/6102589/boards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
 ### Create Board
 Returns `201 Created` with board URL in `Location` header (empty body). Extract board ID from Location.
 ```bash
-curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards" \
+curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -173,7 +187,7 @@ curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards" \
 
 ### List Columns
 ```bash
-curl -s "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns" \
+curl -s "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Accept: application/json"
 ```
@@ -181,7 +195,7 @@ curl -s "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns" \
 ### Create Column
 Returns `201 Created` with column URL in `Location` header. Columns are appended in creation order.
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns" \
+curl -s -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -280,6 +294,19 @@ curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
 ```
 
 ### Create Card
+
+> **Use the helper — it is the only path that VERIFIES the card landed.**
+> ```bash
+> # Ships with this skill: submodules/skill-master/scripts/fizzy-file-card
+> # Put it on PATH once:  ln -sf "$PWD/submodules/skill-master/scripts/fizzy-file-card" ~/.local/bin/
+> fizzy-file-card --list-columns --board {BOARD_ID}
+> fizzy-file-card --board {BOARD_ID} --column {COLUMN_ID} --title "..." --description-file body.html
+> ```
+> create → triage → **re-read → assert `column != null`**, exiting non-zero (code 3) if the card
+> is floating. The create-then-triage dance below is documented correctly and *still* lost cards
+> **#2128 and #2161** (Congrats, 2026-07-17) because nothing verified the result. Documentation
+> can't fail; the helper can. Prefer it.
+
 **Important:** Payload must be wrapped in a `card` key (Rails convention). Always include `Accept: application/json`.
 
 Do NOT use `/boards/{BOARD_ID}/columns/{COL_ID}/cards` (that endpoint returns 404 for POST).
@@ -287,7 +314,7 @@ Do NOT use `/boards/{BOARD_ID}/columns/{COL_ID}/cards` (that endpoint returns 40
 **`column_id` in the create payload is SILENTLY IGNORED** — the card lands in the **Maybe?** lane (`column == null`) no matter what you pass. To place it in a column you must **create-then-triage**: POST the card, then `POST /cards/{N}/triage.json` with `{column_id}` (the same endpoint used to move an existing card). Verified 3× 2026-06-22 (#1575/#1576/#1578 all created with `column_id` in the payload, all landed column-less).
 ```bash
 # 1. Create (column_id omitted — it would be ignored anyway); grab N from the Location header
-curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards" \
+curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -301,6 +328,14 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{N}/triage.json" \
   -H "Accept: application/json" \
   -d '{"column_id": "COL_ID"}'
 # 204 No Content
+
+# 3. VERIFY — re-read and assert the card actually landed. DO NOT SKIP.
+#    Steps 1-2 were already documented when #2128 and #2161 were lost: a 201 plus a
+#    204 still leaves a floating card if the column id was wrong or the triage silently
+#    no-op'd. Only this read proves it. (fizzy-file-card does this for you.)
+curl -s "https://app.fizzy.do/6102589/cards/{N}.json" \
+  -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
+  | python3 -c 'import sys,json; c=json.load(sys.stdin); print("column:", (c.get("column") or {}).get("name") or "❌ FLOATING IN MAYBE PILE")'
 ```
 
 ### Update Card
@@ -363,13 +398,13 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/taggings.json" \
 
 ### List Tags
 ```bash
-curl -s "https://app.fizzy.do/6102589/tags" \
+curl -s "https://app.fizzy.do/6102589/tags.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
 ### List Users
 ```bash
-curl -s "https://app.fizzy.do/6102589/users" \
+curl -s "https://app.fizzy.do/6102589/users.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
