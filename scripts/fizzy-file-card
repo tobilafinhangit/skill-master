@@ -111,8 +111,14 @@ print(json.dumps({"card":{"title":sys.argv[1],"description":sys.argv[2]}}))' "$T
 headers=$(curl -s -D - -o /dev/null -X POST "$API/$ACCOUNT/boards/$BOARD/cards.json" \
   "${auth[@]}" "${json[@]}" -d "$payload")
 
-status=$(printf '%s' "$headers" | head -1 | awk '{print $2}')
-[[ "$status" == "201" ]] || { printf '%s\n' "$headers" | head -5 >&2; die "create failed (HTTP $status)" 2; }
+# Take the LAST HTTP status line, not the first. When a request body is sent with
+# Content-Type: application/json, the server replies "HTTP/1.1 100 Continue" first
+# and the real "HTTP/1.1 201 Created" second — both land in -D -. `head -1` would
+# read 100 and wrongly report "create failed (HTTP 100)" AFTER a real 201, bailing
+# out before triage and leaving the card floating (the exact bug this script exists
+# to prevent — hit filing Congrats #2193/#2194, 2026-07-18).
+status=$(printf '%s' "$headers" | grep -iE '^HTTP/' | tail -1 | awk '{print $2}')
+[[ "$status" == "201" ]] || { printf '%s\n' "$headers" | head -8 >&2; die "create failed (HTTP $status)" 2; }
 
 CARD=$(printf '%s' "$headers" | grep -i '^location:' | sed 's|.*/cards/||; s|\.json.*||' | tr -cd '0-9')
 [[ -n "$CARD" ]] || die "created but could not parse card number from Location header" 2
