@@ -551,5 +551,6 @@ Used by Step 1 to derive the QA column from `card.board.id`:
 | Bugs | `03fl735hqcd0h1pettl8o94oo` | QA To be Confirmed | `03fnl3h1becpuazzhahxbn208` |
 | Congrats | `03f58rc5c48jorujpxqp5da5b` | QA to confirm fixed | `03f58rxrkofln7o86yce47gvk` |
 | Vetted | `03faozjl3gdngcoyzpkr4vf87` | QA to be confirmed | `03fdi5xotshcmiuqk8pj24b23` |
+| VettedAI GTM | `03ga0ytgjp086k2scipsjkyeh` | QA to be confirmed | `03ga0ytvaw5wbw2iaq6mf4aua` |
 
 When a new board is added to the ecosystem, add a row here.

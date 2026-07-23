@@ -448,6 +448,7 @@ Post with the existing Step 4 HTML format — one comment per card. Print a per-
 | Bugs | `03fl735hqcd0h1pettl8o94oo` |
 | Vetted | `03faozjl3gdngcoyzpkr4vf87` |
 | Congrats | `03f58rc5c48jorujpxqp5da5b` |
+| VettedAI GTM | `03ga0ytgjp086k2scipsjkyeh` |
 
 ## Repo Reference
 
@@ -458,5 +459,6 @@ Per-repo auto-detect for Bulk Mode. Match by `basename "$(git rev-parse --show-t
 | `vettedai-audition-supabase-version` | `lovable-staging` | Vetted |
 | `vetted-congrats-Flow-GENEROUS` | `verify-deployments` | Congrats |
 | `backend-restructing` | `backend-verify-deployment` | Congrats (shared) |
+| `vetted-gtm-frontend` | `main` | VettedAI GTM |
 
 The "PR Open" column ID is resolved by name on the board at run time (see Bulk Mode B1) — it's not hardcoded. If no row matches the current repo: ask the user for the integration branch + board.
