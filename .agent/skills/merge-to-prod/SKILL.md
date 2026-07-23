@@ -167,6 +167,59 @@ Print the audit as a compact table and pause. Do not mutate anything yet.
 
 ---
 
+## Phase 3.5: Prod Migration Check (only if `supabase/migrations/` exists in the repo)
+
+**This closes a real gap: `merge-to-prod` ships *code* to `main` (Vercel) but never applies a DB *migration* to the prod database.** A migration in the batch therefore reaches prod-code with **no prod-DB change applied** — the "code diverges from the DB" trap. Worse, applying a *non-additive* migration to prod before its matching code is on prod breaks the live writer (the #919 26-hour scoring-outage class). This phase surfaces every migration in the batch, classifies it against live prod, and routes it — before the PR is built.
+
+Skip entirely if the repo has no `supabase/migrations/` (root or one level deep). Auto-detect the prod ref from the **Repo Reference** (Vetted `lagvszfwsruniuinxdjb`, Congrats/backend `uvszvjbzcvkgktrvavqe`); if unknown, ask — never guess a ref.
+
+**1. Enumerate the migrations in this batch** (the `staging..main` delta, same window Phase 3 used):
+```bash
+git diff --name-only origin/$MAIN..origin/$STAGING -- 'supabase/migrations/*.sql' 2>/dev/null
+# (also check a one-level-deep path, e.g. congrats/supabase/migrations/, per repo layout)
+```
+If none → print "No migrations in this batch" and continue to Phase 4.
+
+**2. For each migration, read its SQL and classify it — additive vs non-additive.** This is the load-bearing decision:
+
+| Class | What it looks like | Prod-apply timing |
+|---|---|---|
+| **Additive** | `ADD COLUMN [IF NOT EXISTS]`, `CREATE TABLE`, `CREATE INDEX`, `CREATE OR REPLACE FUNCTION` (body change that no *stale deployed edge fn* writes against), new RLS/`GRANT`/permission row, new trigger on a new column | Safe to apply to prod **independently** — before, during, or after the code merge. Also safe to **pre-apply for qa-mirror rehearsal** (see `.claude/rules/pre-apply-additive-migration-for-qa-mirror.md`). |
+| **Non-additive** | Tightening/replacing a `CHECK`, remapping a text domain (`UPDATE … WHERE col='old'` + CHECK swap), dropping/renaming a column, a data **backfill**, or an RPC/function body change that a **currently-deployed edge fn still writes against** | **Must deploy atomically with its writer.** Do NOT apply to prod ahead of the code, and do NOT pre-apply for rehearsal. Pair the migration apply with the edge-fn deploy in the same go-live step (`.claude/rules/migration-and-writer-deploy-atomically.md`). |
+
+When unsure which class a migration is, treat it as **non-additive** (fail safe). The tell for non-additive is "does an already-live writer's behavior change the instant this lands?" — if yes, it's coupled.
+
+**3. Check whether each migration's key object is already on prod** (read-only; catches "shipped in a prior batch" and "already pre-applied for rehearsal"):
+```bash
+# Per migration, pick its key object and existence-check it against the PROD ref via
+# the Supabase MCP execute_sql (project_id = <prod ref>). Examples:
+#   column:  SELECT 1 FROM information_schema.columns WHERE table_name='…' AND column_name='…';
+#   table:   SELECT to_regclass('public.<table>');
+#   function:SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+#            WHERE n.nspname='public' AND p.proname='<fn>' AND pg_get_functiondef(p.oid) LIKE '%<new-marker>%';
+#   registry:SELECT 1 FROM supabase_migrations.schema_migrations WHERE version='<ts>';
+```
+Use a `<new-marker>` (a column/branch the migration introduces) for `CREATE OR REPLACE` so "present" means *the new body*, not the old one.
+
+**4. Route each migration and add it to the audit output:**
+
+| State | Action |
+|---|---|
+| **Already on prod** (object present + registry row) | ✅ note "migration already applied to prod (prior batch or pre-applied for rehearsal)" — nothing to do at go-live. |
+| **Additive, not on prod** | 📋 add to the PR body's go-live checklist: "Apply `<file>` to prod SQL editor at go-live." Offer to pre-apply now for qa-mirror rehearsal if the user wants (additive-only). |
+| **Non-additive, not on prod** | ⚠️ add to the go-live checklist as a **coupled** step: "Apply `<file>` **together with** deploying `<edge fn>` — do not apply ahead of the code." Flag it prominently; this is the one that causes outages if applied early. |
+
+**5. Emit a "⚠️ Migration — Run on Production at go-live" block into the PR body** (Phase 4) listing each not-on-prod migration with its class and the raw DDL, so the DDL is visible at merge time. Never use `supabase db push` (files may have been edited after first apply); apply via the Dashboard SQL editor.
+
+**Guardrails:**
+- **Read-only here.** This phase *classifies and reports*; it does not apply anything to prod. Applying additive migrations early for rehearsal is a **separate, user-initiated** step (the pre-apply rule), never an automatic side effect of `merge-to-prod`.
+- **The prod ref is per-repo — never hardcode one repo's ref for another** (same discipline as the qa-handoff staging ref).
+- This does not replace `qa-handoff` Step 3.5 (which applies to *staging* for QA); this is the *prod* side, at promotion time.
+
+Print the migration audit under the Phase 3 table and pause with the rest of the audit.
+
+---
+
 ## Phase 4: Create or Update the staging→main PR
 
 Check for an existing open PR:
