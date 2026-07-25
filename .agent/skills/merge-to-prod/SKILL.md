@@ -45,6 +45,27 @@ source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
 # → $FIZZY_API_TOKEN
 ```
 
+### Phase 1.5: Main→Integration Drift Guard (RUN BEFORE building any PR)
+
+A staging→main PR silently comes up **CONFLICTING** when `main` holds commits the integration branch lacks — hotfixes cherry-picked straight to `main`, features merged via `mtp/*-main` branches, or a prior promotion's own merge commit. Discovering that at *merge time* (as happened 2026-07-25, 65 commits / 19 real features of drift → a hand-resolved 19-file reconcile) is the failure this guard prevents. Run it **first**, before Phase 2.
+
+**Use `git cherry` (patch-id), NEVER `git merge-base --is-ancestor`.** `is-ancestor` reports divergence for a *benign* reason too — immediately after any promotion merges, `main` carries its own merge commit that the integration branch will never contain, so `is-ancestor` returns false on every normal cycle and would nag forever. `git cherry` compares by **patch-id**, so a commit already on the integration branch under a *different SHA* (the dual-SHA case) does **not** false-positive — only genuinely-absent work shows as `+`.
+
+```bash
+git fetch origin --quiet
+# '+' lines = commits on main whose patch is NOT on the integration branch (real drift).
+# '-' lines = already there under a different SHA (benign; ignore).
+DRIFT=$(git cherry "origin/$STAGING" "origin/$MAIN" 2>/dev/null | grep -c '^+')
+if [ "$DRIFT" -gt 0 ]; then
+  echo "⚠️  main has $DRIFT commit(s) NOT on $STAGING (real feature/hotfix drift):"
+  git cherry "origin/$STAGING" "origin/$MAIN" | grep '^+' | while read _ sha; do
+    git log -1 --format='   %h %s' "$sha"
+  done
+fi
+```
+
+**If `DRIFT` > 0 → STOP. Do not build the PR yet.** The staging→main merge will conflict. Offer to **reconcile first**: merge `origin/$MAIN` into `$STAGING` in an **isolated worktree** (never the primary tree — see `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`), authored as `tobi@venturefor.africa` (`.claude/rules/worktree-git-author-identity.md`), after **enumerating** exactly what it will pull (the `+` list above) and confirming with the user. Once reconciled and pushed, `git cherry` returns no `+` lines and the promotion PR merges clean. Only then continue to Phase 2. (This is the *forward* guard; `hotfix` Phase 5 is the *upstream* fix — it merges `main` back into staging right after each hotfix so drift never accumulates. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md` for the dual-SHA-vs-merge-base trap.)
+
 ### Optional override: `.claude/skills/merge-to-prod.json`
 
 Only needed if auto-detection picks the wrong value:

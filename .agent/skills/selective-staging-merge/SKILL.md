@@ -71,6 +71,19 @@ git checkout $STAGING_BRANCH && git pull origin $STAGING_BRANCH
 git checkout $TARGET_BRANCH
 ```
 
+**Main→staging drift guard (run now, before mapping any commits).** If `$TARGET_BRANCH` (main) holds commits the staging branch lacks — hotfixes cherry-picked straight to main, features via `mtp/*-main` branches — the cherry-pick dry-run in Phase 5 will hit conflicts mid-flight instead of surfacing the problem up front. Check with `git cherry` (patch-id, so dual-SHA back-merges don't false-positive — **never** `git merge-base --is-ancestor`, which false-fires on every promotion merge commit):
+
+```bash
+DRIFT=$(git cherry "origin/$STAGING_BRANCH" "origin/$TARGET_BRANCH" 2>/dev/null | grep -c '^+')
+if [ "$DRIFT" -gt 0 ]; then
+  echo "⚠️  $TARGET_BRANCH has $DRIFT commit(s) NOT on $STAGING_BRANCH — reconcile before a selective merge:"
+  git cherry "origin/$STAGING_BRANCH" "origin/$TARGET_BRANCH" | grep '^+' \
+    | while read _ sha; do git log -1 --format='   %h %s' "$sha"; done
+fi
+```
+
+If `DRIFT` > 0 → surface it and recommend reconciling first (merge `origin/$TARGET_BRANCH` into `$STAGING_BRANCH` in an isolated worktree, `tobi@venturefor.africa` author) before running the selective merge. Same guard as `merge-to-prod` Phase 1.5. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`.
+
 ---
 
 ### Phase 2: Fetch Ticket Context from Fizzy

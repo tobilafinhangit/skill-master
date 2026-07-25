@@ -1,13 +1,13 @@
 ---
 name: hotfix
-description: Codifies the P0 hotfix flow — base off main (skipping QA), open a PR to main, then cherry-pick the merge commit back to the integration branch so staging doesn't drift. Confirms P0 status before going main-route. Use when there's a live production incident that cannot wait for the standard staging→QA→main pipeline.
+description: Codifies the P0 hotfix flow — base off main (skipping QA), open a PR to main, then reconcile by merging main back into the integration branch so staging doesn't drift. Confirms P0 status before going main-route. Use when there's a live production incident that cannot wait for the standard staging→QA→main pipeline.
 version: 1.0.0
 license: MIT
 ---
 
 # Hotfix
 
-Ship a fix to production without going through the integration branch. Always cherry-pick back to staging afterward so the integration branch stays a superset of main.
+Ship a fix to production without going through the integration branch. Always reconcile afterward (merge main back into staging) so the integration branch stays a superset of main.
 
 **Announce at start:** "I'm using the hotfix skill."
 
@@ -36,7 +36,7 @@ If unsure whether something is hotfix-worthy, ask. Default to staging.
 
 ## Phase 1: Confirm P0
 
-Before cutting any branch, the skill must confirm this is genuinely a hotfix. The deployment shape (skip QA, separate cherry-pick PR) doubles the work of a normal feature — only worth it if the production incident makes the wait cost higher.
+Before cutting any branch, the skill must confirm this is genuinely a hotfix. The deployment shape (skip QA, separate reconcile PR) doubles the work of a normal feature — only worth it if the production incident makes the wait cost higher.
 
 Ask the user once, plainly:
 > "Confirming this is a P0 hotfix — production is broken or there's a live user-impacting incident, and we need to ship to `main` directly without going through staging QA. Is that right? (If unsure, we should base off `lovable-staging` instead.)"
@@ -103,10 +103,10 @@ gh pr create --base "$TARGET" --head "$BRANCH" \
 
 ## Verification
 - [ ] Manual smoke test on production after merge: <specific check>
-- [ ] Cherry-pick PR to <integration> opened (filed automatically by /hotfix after this merges)
+- [ ] Reconcile PR to <integration> opened (filed automatically by /hotfix after this merges)
 
-## Cherry-pick plan
-After this PR merges to \`$TARGET\`, run \`/hotfix --finalize <PR#>\` to open the cherry-pick PR back to \`$INTEGRATION\`.
+## Reconcile plan
+After this PR merges to \`$TARGET\`, run \`/hotfix --finalize <PR#>\` to open the reconcile PR (merge \`main\` back into \`$INTEGRATION\`).
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -117,33 +117,47 @@ The `🔥` + `[skip QA]` markers are explicit signals to anyone reviewing the PR
 
 ---
 
-## Phase 5: After Merge — Cherry-Pick to Integration
+## Phase 5: After Merge — Reconcile main → Integration (merge, not cherry-pick)
 
-`main` and `<integration>` must not diverge. The hotfix lives on `main`; the integration branch needs the same commit so future staging→main PRs don't try to revert it.
+`main` and `<integration>` must not diverge. The hotfix lives on `main`; the integration branch needs the same change so future staging→main PRs don't conflict or try to revert it.
 
-When the user invokes `/hotfix --finalize <PR#>` (or simply says "the hotfix merged, cherry-pick it"):
+**Reconcile with a MERGE of `main` into the integration branch — not a cherry-pick.** A cherry-pick copies the hotfix under a *new* SHA: the content matches, but `git merge-base --is-ancestor` still reports the two branches as diverged **forever** (the "dual-SHA drift" trap — see `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`). Every later staging→main promotion then re-surfaces that commit as a phantom conflict. A merge commit heals *history*, so `main` becomes a clean ancestor of the integration branch and the drift genuinely closes. A merge also picks up the hotfix whether it landed on `main` as a squash-commit or a merge-commit — no fragile `-m 1` guessing.
+
+When the user invokes `/hotfix --finalize <PR#>` (or simply says "the hotfix merged, reconcile it"):
 
 ```bash
-# Identify the merge commit
-MERGE_SHA=$(gh pr view <PR#> --json mergeCommit --jq '.mergeCommit.oid')
-
-# Cut a separate worktree off the integration branch
 git fetch origin --quiet
-git worktree add -b "hotfix/${SLUG}-cherrypick" \
-  ".claude/worktrees/hotfix-${SLUG}-cherrypick" "origin/${INTEGRATION}"
-cd ".claude/worktrees/hotfix-${SLUG}-cherrypick"
 
-# Cherry-pick. If conflicts arise, the integration branch has diverged
-# in a way that interacts with the hotfix — pause and ask the user.
-git cherry-pick "$MERGE_SHA" -m 1   # -m 1 if it's a merge commit, otherwise drop -m
-git push -u origin "hotfix/${SLUG}-cherrypick"
+# Enumerate what merging main will pull into the integration branch. In the normal
+# case this is JUST the hotfix. If it lists OTHER commits, main has accumulated
+# straight-to-main work the integration branch never got — surface it and confirm
+# before proceeding (you're about to bring all of it into staging).
+echo "main→${INTEGRATION} will pull:"
+git log "origin/${INTEGRATION}..origin/main" --oneline
 
-gh pr create --base "$INTEGRATION" --head "hotfix/${SLUG}-cherrypick" \
-  --title "chore: cherry-pick hotfix <slug> into ${INTEGRATION}" \
-  --body "Cherry-picks #<PR#> (merged to \`main\`) back into \`${INTEGRATION}\` so the integration branch stays a superset of \`main\`. No new changes."
+# Cut a separate worktree off the integration branch (NEVER the primary tree —
+# .claude/rules/merge-flow-isolated-worktree-not-primary-tree.md: the merge's conflict
+# cleanup would otherwise git-restore the user's uncommitted work).
+git worktree add -b "hotfix/${SLUG}-reconcile" \
+  ".claude/worktrees/hotfix-${SLUG}-reconcile" "origin/${INTEGRATION}"
+cd ".claude/worktrees/hotfix-${SLUG}-reconcile"
+
+# The merge commit is AUTHORED — set identity or Vercel rejects the staging deploy
+# (.claude/rules/worktree-git-author-identity.md).
+git config user.email "tobi@venturefor.africa"
+git config user.name  "tobilafinhangit"
+
+# Merge main into the integration branch. If conflicts arise, the branches diverged
+# in a way that interacts with the hotfix — resolve in this worktree, or pause + ask.
+git merge origin/main --no-ff -m "merge: reconcile main into ${INTEGRATION} (hotfix #<PR#>)"
+git push -u origin "hotfix/${SLUG}-reconcile"
+
+gh pr create --base "$INTEGRATION" --head "hotfix/${SLUG}-reconcile" \
+  --title "chore: reconcile main into ${INTEGRATION} (hotfix <slug>)" \
+  --body "Merges \`main\` back into \`${INTEGRATION}\` so it stays a superset of \`main\` after hotfix #<PR#>. Heals history (no dual-SHA drift). No new changes."
 ```
 
-The cherry-pick PR can be merged with admin bypass — there's nothing new to QA, and not landing it leaves staging diverged.
+The reconcile PR can be merged with admin bypass — there's nothing new to QA, and not landing it leaves staging diverged. Remove the worktree when done (`git worktree remove`).
 
 ---
 
@@ -152,15 +166,16 @@ The cherry-pick PR can be merged with admin bypass — there's nothing new to QA
 Both deploys must be green:
 - `main` deploy reflects the fix in production (Vercel deploy logs / live smoke test)
 - `<integration>` deploy reflects the fix in staging
-- `git log origin/main..origin/<integration>` and `git log origin/<integration>..origin/main` both show the fix only on the side(s) that should — usually empty in both directions for a single hotfix that's been cherry-picked
+- `git cherry origin/<integration> origin/main` shows **no `+` lines** — main is a clean superset-ancestor of the integration branch (the reconcile merge healed history; a stray `+` means the merge didn't land or main has un-reconciled straight-to-main work)
 
 ---
 
 ## What NOT to do
 
 - ❌ Don't base a hotfix off `lovable-staging` then "promote it" later — that's just a feature branch wearing a hotfix hat, and you've still gone through staging.
-- ❌ Don't merge `<integration>` into `main` instead of doing the cherry-pick — that would drag everything else on staging into prod.
-- ❌ Don't skip the cherry-pick step. The integration branch will quietly diverge from main and the next staging→main PR will look weird.
+- ❌ Don't merge `<integration>` into `main` to reconcile — that's backwards; it drags everything else on staging into prod. Phase 5 merges `main` INTO the integration branch (main → staging), never the reverse.
+- ❌ Don't reconcile with a **cherry-pick** — it copies the fix under a new SHA and leaves the branches diverged by `merge-base` forever (dual-SHA drift). Use the Phase 5 merge, which heals history.
+- ❌ Don't skip the reconcile step. The integration branch will quietly diverge from main and the next staging→main PR will conflict.
 - ❌ Don't reuse the hotfix branch for follow-ups. New work = new branch off whichever base is correct for that work.
 - ❌ Don't run `git stash --include-untracked` to switch out of the worktree — it sweeps untracked skill directories. Plain `git stash` or just `cd` away.
 
