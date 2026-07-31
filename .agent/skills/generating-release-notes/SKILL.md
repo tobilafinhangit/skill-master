@@ -4,14 +4,14 @@ description: >
   Use when a batch of engineering work is complete. Generates team-readable
   release notes OR polished community-facing newsletter content from git
   history. Supports internal (default), newsletter, or both output modes.
-version: 2.1.0
+version: 2.2.0
 license: MIT
 metadata:
   author: VettedAI
   category: communication
   tags: [release-notes, changelog, newsletter, community, team-communication, qa, product]
   created: 2026-02-18
-  updated: 2026-03-27
+  updated: 2026-07-31
 argument-hint: "[date-range or commit-range] [newsletter|both]"
 ---
 
@@ -425,9 +425,13 @@ The newsletter voice is **confident builder** — a team that ships fast, cares 
 - **Screenshot placeholders save review cycles.** Describing exactly what to capture ("the profile page with the new booking link field filled in") means the person adding screenshots doesn't need to guess.
 - **One newsletter per week max.** Even if you ship daily, batch into weekly updates. Community attention is finite.
 
-### Step 6: Post to Fizzy
+### Step 6: Post the Full Release Notes to Fizzy
 
-After writing release notes (any mode), create a summary card on the project's **Fizzy board**.
+After writing release notes (any mode), create a card on the project's **Fizzy board** containing the complete internal release notes. The Fizzy card is the team-facing release artifact; the Markdown file in `docs/release-notes/` is its repository copy.
+
+**Do not condense the card into a summary or replace its QA detail with a link to the local file.** Convert the complete internal note to HTML and include every release entry, including its Where, What, Why, and Test fields, as well as Internal Changes, the full QA Checklist, and Deployment Notes. This is the default even when the user simply asks for “release notes” or a “summary” on Fizzy.
+
+If the user explicitly asks for a shorter executive summary, create that as a separate companion card or comment; do not overwrite or abbreviate the full release-notes card.
 
 #### Fizzy Board Config (per-project)
 
@@ -445,14 +449,13 @@ Each project must define these values. Look in these locations (in order): `.cla
 #### Card Format
 
 - **Title:** `Release Notes — [Date] ([N] commits)`
-- **Body:** HTML summary (use `description` field — Fizzy ignores `content`) with these sections:
-  - `<h3>New Features ([count])</h3>` — `<ul>` with `<strong>name</strong> — one-line description` per feature
-  - `<h3>Major Fixes ([count])</h3>` — `<ul>` with one-line per fix
-  - `<h3>Improvements ([count])</h3>` — same format
-  - `<h3>Security</h3>` — if applicable
-  - `<h3>Internal</h3>` — brief bullets
-  - `<h3>Deployment Notes</h3>` — env vars, migrations, cron jobs, new endpoints
-  - Final `<p><em>Full QA checklist in docs/release-notes/[date].md</em></p>`
+- **Body:** Complete internal release notes as HTML (use the `description` field — Fizzy ignores `content`). Preserve the same content and order as the Markdown internal note:
+  - `<h2>User-Facing Changes</h2>` with New Features, Improvements, and Bug Fixes.
+  - Every entry must include **Where**, **What**, **Why** (when known), and **Test**; do not reduce these to one-line bullets.
+  - `<h2>Internal Changes</h2>` with all relevant internal entries.
+  - `<h2>QA Checklist</h2>` with every actionable checkbox from the Markdown note.
+  - `<h2>Deployment Notes</h2>` when applicable, including migrations, Edge Functions, env vars, crons, and new endpoints.
+- **Rendering:** Convert the finished Markdown document to HTML or generate equivalent HTML directly. Verify the card body contains the complete QA checklist and detailed entry text before reporting success.
 
 #### Posting
 
