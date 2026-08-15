@@ -7,6 +7,8 @@ license: MIT
 
 # PR Review
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Review a GitHub PR against its Fizzy ticket — verify the engineer delivered what was asked, check for regressions, and post the verdict.
 
 **Announce at start:** "I'm using the pr-review skill to review this PR against its ticket."
@@ -90,7 +92,7 @@ Priority order:
 
 1. **`--card N` given** → use directly
 2. **Search PR body** for Fizzy card references:
-   - URLs: `app.fizzy.do/6102589/cards/{NUMBER}`
+   - URLs: `app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}`
    - Patterns: `Card #NNN`, `card-NNN`, `Fizzy #NNN`
 3. **Search branch name** for leading number: e.g., `337-fix-scoring` → card 337
 4. **Not found** → prompt: "No Fizzy card detected. Enter card number (or press Enter to skip ticket compliance):"
@@ -101,12 +103,12 @@ If a card number is resolved, fetch it:
 source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
 
 # Card details
-CARD_JSON=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
+CARD_JSON=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Accept: application/json")
 
 # Card comments (often contain the real requirements)
-COMMENTS_JSON=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+COMMENTS_JSON=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Accept: application/json")
 ```
@@ -243,7 +245,7 @@ If the user confirms (or if no Fizzy card exists, skip this step entirely):
 ```bash
 source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
 
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -322,7 +324,7 @@ If the repo also takes PRs straight to `main`, run a second call with `--base ma
 source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
 BOARD_ID=...      # from Repo Reference
 # Resolve the column ID by name (the column may be "PR Open", "In Review", "Code Review")
-PR_OPEN_COL=$(curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns.json" \
+PR_OPEN_COL=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/$BOARD_ID/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: skill-master/pr-review" \
   | python3 -c "import json,sys; print(next((c['id'] for c in json.load(sys.stdin) if c['name'].lower() in ('pr open','prs open','in review','code review')), ''))")
 # Then fetch ALL cards in that column — PAGINATE. Follow `Link: rel="next"` (page size escalates
@@ -415,7 +417,7 @@ Post with the existing Step 4 HTML format — one comment per card. Print a per-
 
 - **Always use `.json` suffix** on action endpoints (comments, triage, assignments)
 - **Token**: `source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null` → `$FIZZY_API_TOKEN`
-- **Account slug**: `6102589`
+- **Account slug**: `{FIZZY_ACCOUNT_ID}` (your Fizzy/Basecamp account slug — see the setup note in the `fizzy` skill)
 - **Comments endpoint**: `POST /cards/{NUMBER}/comments.json` with `{"comment": {"body": "..."}}`
 - **Card details**: `GET /cards/{NUMBER}.json`
 - **Card comments**: `GET /cards/{NUMBER}/comments.json`

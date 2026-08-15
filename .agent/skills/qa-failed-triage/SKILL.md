@@ -7,6 +7,8 @@ license: MIT
 
 # QA-Failed Triage
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Sweep the "QA Failed" column. For each card: **classify the failure → verify the classification against ground truth → route to the remedy.** You are the senior here — your job is to find what actually broke, not to re-run a review.
 
 **Announce at start:** "I'm using the qa-failed-triage skill to sweep the QA-Failed column."
@@ -32,7 +34,7 @@ A "QA Failed" card is rarely "the engineer's code is wrong." Across real sweeps,
   1. **Board ID** — match `basename "$(git rev-parse --show-toplevel)"` against the Board Reference below → if no match, ask the user which board.
   2. **QA-Failed column ID** — take it from the Board Reference if known; otherwise list the board's columns and match by name (case-insensitive, contains both `qa` and `fail`):
      ```bash
-     curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns.json" \
+     curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/$BOARD_ID/columns.json" \
        -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: skill-master/qa-failed-triage" \
        | python3 -c "import json,sys; [print(c['id'], c['name']) for c in json.load(sys.stdin) if 'qa' in c['name'].lower() and 'fail' in c['name'].lower()]"
      ```

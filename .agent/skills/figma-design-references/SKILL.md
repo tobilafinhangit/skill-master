@@ -7,6 +7,8 @@ license: MIT
 
 # Figma → Design References
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Translate Figma frames into static HTML/CSS reference files under `docs/design-references/<slug>/` so designers, PMs, and engineers can render them in a browser without a build step. The output is a *visual spec*, not production code — engineers re-implement using the project's existing design system.
 
 ## When to use

@@ -7,6 +7,8 @@ metadata:
   author: VettedAI
   category: engineering-management
 ---
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 
 # Loose Ends
 

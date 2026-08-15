@@ -7,6 +7,8 @@ license: MIT
 
 # Tech Review
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Pressure-test a technical plan through a panel of a senior full-stack engineer and a senior tech lead who know this codebase and product deeply and have shipped something similar to production. **The job is not to change the goal — only to pressure-test the approach.**
 
 **Announce at start:** "I'm using the tech-review skill to pressure-test this plan."
@@ -114,13 +116,13 @@ If the user passed `--card <N>` (or asks to post the review back), post the **fi
 source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
 
 # Fetch card + comments to use as the plan source
-curl -s "https://app.fizzy.do/6102589/cards/{N}.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{N}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0"
-curl -s "https://app.fizzy.do/6102589/cards/{N}/comments.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{N}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0"
 
 # Post the final plan as a comment (field is "body", HTML content)
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{N}/comments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{N}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
   -H "Content-Type: application/json" \
   --data-binary @/tmp/tech_review_comment.json

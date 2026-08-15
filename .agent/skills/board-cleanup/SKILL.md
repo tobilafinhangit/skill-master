@@ -38,7 +38,7 @@ TOKEN=$(grep -E '^FIZZY_API_TOKEN=' "$ENVFILE" | head -1 | cut -d= -f2- | tr -d 
 H=( -H "Authorization: Bearer $TOKEN" -H "User-Agent: VettedAI/1.0" )
 ```
 
-**Pick the board for this repo.** Boards (account `6102589`):
+**Pick the board for this repo.** Boards (account `{FIZZY_ACCOUNT_ID}` (your Fizzy/Basecamp account slug — see the setup note in the `fizzy` skill)):
 
 | Board | ID | Repo it maps to |
 |-------|----|-----------------|
@@ -54,13 +54,13 @@ If the repo isn't obvious, ask the user which board.
 ```bash
 BOARD="<board-id>"
 # Columns (IDs differ per board — never hardcode across boards):
-curl -s "https://app.fizzy.do/6102589/boards/$BOARD/columns.json" "${H[@]}"
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/$BOARD/columns.json" "${H[@]}"
 ```
 
 Pull every card, paginated. **CRITICAL GOTCHA:** `cards.json?board_id=X` requires the `.json` suffix AND **the `board_id` filter is silently ignored** — the endpoint returns cards from *all* boards. You MUST filter client-side by **EXACT** `board.name` equality — **never `startswith`**: sibling boards share a prefix (e.g. `Vetted (Recruiter-Facing) | Engineering`, `Vetted Onboarding Tool`, and `VettedAI GTM` all start with `Vetted`, so `startswith('Vetted')` silently conflates all three and inflates every count). Page size **escalates** (15→30→50…), so paginate by following `Link: rel="next"` — never stop on the first <15 page. (Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.)
 
 ```bash
-url="https://app.fizzy.do/6102589/cards.json?page=1"; > /tmp/bc_cards.jsonl
+url="https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards.json?page=1"; > /tmp/bc_cards.jsonl
 while [ -n "$url" ]; do
   body=$(curl -s "$url" "${H[@]}" -D /tmp/bc_h.txt)
   echo "$body" | python3 -c "import sys,json;[print(json.dumps(c)) for c in json.load(sys.stdin)]" >> /tmp/bc_cards.jsonl

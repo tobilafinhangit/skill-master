@@ -7,6 +7,8 @@ license: MIT
 
 # Hotfix
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Ship a fix to production without going through the integration branch. Always reconcile afterward (merge main back into staging) so the integration branch stays a superset of main.
 
 **Announce at start:** "I'm using the hotfix skill."
@@ -144,8 +146,8 @@ cd ".claude/worktrees/hotfix-${SLUG}-reconcile"
 
 # The merge commit is AUTHORED — set identity or Vercel rejects the staging deploy
 # (.claude/rules/worktree-git-author-identity.md).
-git config user.email "tobi@venturefor.africa"
-git config user.name  "tobilafinhangit"
+git config user.email "{WORKTREE_GIT_EMAIL}"
+git config user.name  "{WORKTREE_GIT_NAME}"
 
 # Merge main into the integration branch. If conflicts arise, the branches diverged
 # in a way that interacts with the hotfix — resolve in this worktree, or pause + ask.

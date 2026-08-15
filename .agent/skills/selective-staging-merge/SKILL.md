@@ -7,6 +7,8 @@ license: MIT
 
 # Selective Staging Merge
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Merge a staging branch → `main` while holding back specific tickets that haven't passed QA yet.
 
 Works across all three repos — staging branch name is auto-detected per repo.
@@ -82,7 +84,7 @@ if [ "$DRIFT" -gt 0 ]; then
 fi
 ```
 
-If `DRIFT` > 0 → surface it and recommend reconciling first (merge `origin/$TARGET_BRANCH` into `$STAGING_BRANCH` in an isolated worktree, `tobi@venturefor.africa` author) before running the selective merge. Same guard as `merge-to-prod` Phase 1.5. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`.
+If `DRIFT` > 0 → surface it and recommend reconciling first (merge `origin/$TARGET_BRANCH` into `$STAGING_BRANCH` in an isolated worktree, `{WORKTREE_GIT_EMAIL}` author (your own repo-automation identity)) before running the selective merge. Same guard as `merge-to-prod` Phase 1.5. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`.
 
 ---
 
@@ -93,7 +95,7 @@ For each excluded ticket, fetch title + column to determine ticket **type**.
 ```bash
 source .env.local
 for TICKET in $(echo $EXCLUDED_TICKETS | tr ',' ' '); do
-  curl -s "https://app.fizzy.do/6102589/cards/$TICKET.json" \
+  curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/$TICKET.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN" \
     -H "User-Agent: VettedAI/1.0" | python3 -c "
 import json, sys
@@ -423,7 +425,7 @@ git merge lovable-staging
 ## Fizzy API Reference
 
 - **Token**: `source .env.local` → `$FIZZY_API_TOKEN`
-- **Account slug**: `6102589`
+- **Account slug**: `{FIZZY_ACCOUNT_ID}` (your Fizzy/Basecamp account slug — see the setup note in the `fizzy` skill)
 - **Card details**: `GET /cards/{NUMBER}.json`
 - Always append `.json` to action endpoints — returns 422 without it
 - This skill takes excluded ticket numbers as input and fetches each card individually, so it does **not** enumerate a board column and is immune to the page-1 truncation bug. **If you ever extend it to list a column** (`GET .../columns/<id>/cards.json`), that endpoint paginates at 15/page and returns only page 1 unless you follow `Link: rel="next"` / `?page=N` and assert the fetched count equals the `X-Total-Count` header — otherwise a >15-card column is silently truncated. See `merge-to-prod` Phase 2 for the pagination loop.

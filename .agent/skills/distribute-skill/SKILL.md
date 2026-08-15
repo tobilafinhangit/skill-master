@@ -185,7 +185,7 @@ for repo in "${REPOS[@]}"; do
     echo "     Open a PR via this repo's release flow (feature→verify-deployments→release→main)."
   elif echo " $INTEGRATION_BRANCHES " | grep -q " $branch "; then
     git add submodules/skill-master
-    git -c user.email="tobi@venturefor.africa" -c user.name="tobilafinhangit" \
+    git -c user.email="{WORKTREE_GIT_EMAIL}" -c user.name="{WORKTREE_GIT_NAME}" \
       commit -q -m "chore(skills): bump skill-master submodule"
     git push    # confirm with the user before pushing shared branches
     echo "  pointer committed + pushed on integration branch '$branch'"

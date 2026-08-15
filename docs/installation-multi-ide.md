@@ -19,12 +19,31 @@ This approach ensures:
 - ✅ No duplication of skills
 - ✅ Easy updates (edit once, works everywhere)
 
-## Quick Start
+## Fastest Install: `npx skills`
+
+If you just want one or two skills inside an existing repo, skip cloning entirely. The [`skills` CLI](https://www.npmjs.com/package/skills) can pull individual skills straight from GitHub — it walks `.agent/skills/` (or any dir with `SKILL.md` files), no manifest or extra setup needed on the skill-master side.
+
+```bash
+# Install one skill into the current repo
+npx skills@latest add tobilafinhangit/skill-master --skill=fizzy
+
+# Install everything
+npx skills@latest add tobilafinhangit/skill-master --all
+
+# Browse what's available before installing
+npx skills@latest add tobilafinhangit/skill-master --list
+```
+
+Then type `/fizzy` (or whichever skill name) in your coding agent.
+
+This is the right choice when you want a handful of skills dropped into one project. Use the clone + symlink approach below when you want to edit skills locally, keep the whole repo in sync, or work across multiple IDEs from one checkout.
+
+## Quick Start (clone + symlink)
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/skill-master.git
+git clone https://github.com/tobilafinhangit/skill-master.git
 cd skill-master
 ```
 
@@ -171,7 +190,7 @@ Cursor uses `.cursor/skills/` which we've symlinked to `.agent/skills/`.
    - Open Cursor Settings (Cmd+Shift+J / Ctrl+Shift+J)
    - Navigate to Rules
    - Click "Add Rule" → "Remote Rule (Github)"
-   - Enter repository URL: `https://github.com/your-org/skill-master`
+   - Enter repository URL: `https://github.com/tobilafinhangit/skill-master`
 
 ### Verification
 
@@ -420,21 +439,26 @@ However, `.agent/skills/` is recommended for Google Antigravity compatibility.
 
 ### Q: How do I share skills with my team?
 
-**A**: Three options:
+**A**: Four options:
 
-1. **Git repository** (recommended):
+1. **`npx skills` (fastest, per-skill)**:
    ```bash
-   git clone https://github.com/your-org/skill-master.git
+   npx skills@latest add tobilafinhangit/skill-master --skill=<skill-name>
+   ```
+
+2. **Git repository** (best for editing skills locally):
+   ```bash
+   git clone https://github.com/tobilafinhangit/skill-master.git
    cd skill-master
    ./scripts/setup-multi-ide-skills.sh
    ```
 
-2. **Plugin system** (Claude Code):
+3. **Plugin system** (Claude Code):
    ```
-   /plugin marketplace add your-org/skill-master
+   /plugin marketplace add tobilafinhangit/skill-master
    ```
 
-3. **GitHub rules** (Cursor):
+4. **GitHub rules** (Cursor):
    - Settings → Rules → Add Rule → Remote Rule (Github)
    - Enter repo URL
 
@@ -460,6 +484,6 @@ However, `.agent/skills/` is recommended for Google Antigravity compatibility.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/skill-master/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/skill-master/discussions)
+- **Issues**: [GitHub Issues](https://github.com/tobilafinhangit/skill-master/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/tobilafinhangit/skill-master/discussions)
 - **Documentation**: [docs/](.)

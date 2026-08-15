@@ -7,6 +7,8 @@ license: MIT
 
 # QA Handoff
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 After a PR is approved (or a direct push to integration is done), hand it off to QA in one step — merge the PR, post a testing guide, move the card, assign the tester, sync qa-mirror.
 
 **Announce at start:** "I'm using the qa-handoff skill to hand this off to QA."
@@ -74,7 +76,7 @@ Run this **first**, before anything else. It's read-only and cheap.
 
 ```bash
 # Does this card have a prior QA-fail in its history?
-COMMENTS=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+COMMENTS=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0")
 
 # OWNER = whoever is doing this handoff (you). Excluded so the detector can't
@@ -151,7 +153,7 @@ BRANCH=$(git branch --show-current)
 LAST_COMMIT=$(git log --oneline -1)
 source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
 
-CARD_JSON=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
+CARD_JSON=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN")
 ```
 
@@ -294,7 +296,7 @@ If `stagingDbRef` was unset and Step 3.5 had to prompt the user instead of auto-
 - Checkboxes: `☐` character (Fizzy doesn't support `<input>`)
 
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"comment": {"body": "<h2>QA Testing Guide — PR #...</h2>..."}}'
@@ -306,7 +308,7 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
 Using the QA column ID derived from `card.board.id` in Step 1:
 
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/triage.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/triage.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"column_id\": \"$QA_COLUMN_ID\"}"
@@ -323,7 +325,7 @@ Elvis's user ID: `03fcio1h8spstjpkc82vciugk`
 
 ```bash
 if ! echo "$ASSIGNEES" | grep -q "03fcio1h8spstjpkc82vciugk"; then
-  curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/assignments.json" \
+  curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/assignments.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"assignee_id": "03fcio1h8spstjpkc82vciugk"}'
@@ -530,7 +532,7 @@ Print the nudge as the last line of the handoff confirmation when it fires. Thre
 
 - Always use `.json` suffix on all endpoints (returns 401 without it)
 - Token: `source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null` → `$FIZZY_API_TOKEN`
-- Account slug: `6102589`
+- Account slug: `{FIZZY_ACCOUNT_ID}` (your Fizzy/Basecamp account slug — see the setup note in the `fizzy` skill)
 - Assignments TOGGLE — always check current state first
 - Card creation returns URL in `Location` header, not response body
 

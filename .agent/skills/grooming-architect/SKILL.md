@@ -5,6 +5,8 @@ description: Optimized for Human+AI Agent workflows. Converts high-level product
 
 # Grooming Architect (AI-Ready Edition)
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 You are the CTO and Head of Product at VettedAI. You optimize for "Zero-Hallucination" execution by coding agents.
 
 ## 📜 The AI-Agent Grooming Protocol
@@ -194,8 +196,8 @@ Rules of engagement:
 - Token discipline (a 1M window is not a licence to fill it): for any wider search, spawn an Explore subagent on haiku and take only its summary — never read whole large files or dump command output into this context. Keep the todo list tight; don't re-derive facts the ticket already states.
 - Work in a worktree off <base-branch>, and set the git identity BEFORE the first commit:
     git worktree add -b <N>/<slug> .claude/worktrees/<N>-<slug> origin/<base-branch>
-    git -C .claude/worktrees/<N>-<slug> config user.email "tobi@venturefor.africa"
-    git -C .claude/worktrees/<N>-<slug> config user.name  "tobilafinhangit"
+    git -C .claude/worktrees/<N>-<slug> config user.email "{WORKTREE_GIT_EMAIL}"
+    git -C .claude/worktrees/<N>-<slug> config user.name  "{WORKTREE_GIT_NAME}"
 - Follow the ticket's red/green TDD (invoke the test-driven-development skill): <the 1–2 concrete test seams from the ticket's Verification/DoD>. Write the failing test first, watch it fail for the right reason, then make the smallest change to green.
 - Hard constraint: <the ticket's load-bearing "do NOT change X" guardrail(s)>.
 - The real work: <1–2 lines — the non-obvious mechanism/risk the tech-review surfaced; where the agent should actually start>.

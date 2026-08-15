@@ -7,15 +7,27 @@ description: Interact with Fizzy (37signals) project management boards via REST 
 
 Interact with the team's Fizzy boards directly via the REST API using `curl` or `WebFetch`.
 
+## Setup (do this once per org/repo)
+
+Every `{FIZZY_ACCOUNT_ID}` placeholder in this skill (and in `board-cleanup`, `pr-review`,
+`merge-to-prod`, `qa-handoff`, and the other Fizzy-aware skills) means the same thing: your
+Fizzy/Basecamp account slug, the segment right after `app.fizzy.do/` in your board URLs
+(e.g. `https://app.fizzy.do/1234567/boards/...` → account is `1234567`). Find yours by opening
+any board in the browser and reading it out of the URL, or via `GET /my/identity`. Set it once
+(env var, or just find-and-replace in your fork) rather than re-deriving it per skill.
+
+The board names/IDs in the **Team Boards** table below, the `User-Agent: VettedAI/1.0` header,
+and the `congrats/.env.tokens` path in Authentication are this skill's original examples —
+replace them with your own board names/IDs, product name, and token file location.
+
 ## Authentication
 
 All requests require a Bearer token. **It is NOT in the shell environment by default** — a bare
 `echo $FIZZY_API_TOKEN` prints nothing. Read it from the repo's gitignored env file first:
 
 ```bash
-# Congrats: congrats/.env.tokens  (NOT .env.local — Vercel overwrites that file)
-# Audition/backend: .env.local
-TOKEN=$(grep -E '^FIZZY_API_TOKEN=' congrats/.env.tokens | head -1 | cut -d= -f2- | tr -d "\"'" | tr -d '[:space:]')
+# Example layout — adjust the path to wherever your repo keeps the token:
+TOKEN=$(grep -E '^FIZZY_API_TOKEN=' .env.local | head -1 | cut -d= -f2- | tr -d "\"'" | tr -d '[:space:]')
 ```
 
 **Two headers are mandatory on every request:**
@@ -23,19 +35,21 @@ TOKEN=$(grep -E '^FIZZY_API_TOKEN=' congrats/.env.tokens | head -1 | cut -d= -f2
 | Header | Why |
 |---|---|
 | `Authorization: Bearer $TOKEN` | auth |
-| `User-Agent: VettedAI/1.0` | **401 without it** — and the 401 looks exactly like a bad token |
+| `User-Agent: <your-product>/1.0` | **401 without it** — and the 401 looks exactly like a bad token |
 
 > **NEVER hardcode the token.** Always read it from the env file.
 
 ## API Base URL
 
 ```
-https://app.fizzy.do/6102589
+https://app.fizzy.do/{FIZZY_ACCOUNT_ID}
 ```
 
-Account slug: `6102589`
+Account slug: `{FIZZY_ACCOUNT_ID}` — see **Setup** above.
 
 ## Team Boards
+
+Example boards from this skill's original org — replace with your own board names and IDs.
 
 | Board | Fizzy Name | Board ID | When to use |
 |-------|-----------|----------|-------------|
@@ -95,7 +109,7 @@ Create a new board with the standard engineering column structure (matches Vette
 1. Source the token: `source .env.local`
 2. Create the board:
 ```bash
-LOCATION=$(curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards.json" \
+LOCATION=$(curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -115,7 +129,7 @@ for COL in \
   '{"column":{"name":"QA Failed","color":"var(--color-card-2)"}}' \
   '{"column":{"name":"QA to be confirmed","color":"var(--color-card-5)"}}' \
   '{"column":{"name":"Merge to Prod","color":"var(--color-card-7)"}}'; do
-  curl -s -X POST "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns.json" \
+  curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/${BOARD_ID}/columns.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json" \
@@ -124,11 +138,11 @@ done
 ```
 4. Confirm columns were created:
 ```bash
-curl -s "https://app.fizzy.do/6102589/boards/${BOARD_ID}/columns.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/${BOARD_ID}/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Accept: application/json"
 ```
-5. Display the board URL (`https://app.fizzy.do/6102589/boards/${BOARD_ID}`) and column summary to the user.
+5. Display the board URL (`https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/${BOARD_ID}`) and column summary to the user.
 
 ## Engineering Board Template
 
@@ -170,24 +184,24 @@ curl -s "https://fizzy.do/my/identity" \
 
 ### List Boards
 ```bash
-curl -s "https://app.fizzy.do/6102589/boards.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
 ### Create Board
 Returns `201 Created` with board URL in `Location` header (empty body). Extract board ID from Location.
 ```bash
-curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards.json" \
+curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -d '{"board": {"name": "My Board"}}'
-# Location: /6102589/boards/03f5v9zkft4hj9qq0lsn9ohcm.json
+# Location: /{FIZZY_ACCOUNT_ID}/boards/03f5v9zkft4hj9qq0lsn9ohcm.json
 ```
 
 ### List Columns
 ```bash
-curl -s "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/{BOARD_ID}/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Accept: application/json"
 ```
@@ -195,7 +209,7 @@ curl -s "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns.json" \
 ### Create Column
 Returns `201 Created` with column URL in `Location` header. Columns are appended in creation order.
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/{BOARD_ID}/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -215,7 +229,7 @@ Two correct ways:
 - **Per-column (preferred for column-targeted reads — qa-handoff/pr-review/qa-failed-triage/merge-to-prod):**
   properly scoped, and the response carries an exact `X-Total-Count`.
   ```bash
-  curl -s "https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns/{COL_ID}/cards.json" \
+  curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/{BOARD_ID}/columns/{COL_ID}/cards.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN" -D /tmp/h.txt -o /tmp/cards.json
   grep -i x-total-count /tmp/h.txt   # exact open-card count for that column (matches the UI badge)
   ```
@@ -230,7 +244,7 @@ Two correct ways:
 absent, then assert fetched count == `X-Total-Count`. A single fetch silently truncates a 44-card
 column to its first page.
 ```bash
-url="https://app.fizzy.do/6102589/boards/{BOARD_ID}/columns/{COL_ID}/cards.json"
+url="https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/{BOARD_ID}/columns/{COL_ID}/cards.json"
 : > /tmp/col.jsonl
 while [ -n "$url" ]; do
   body=$(curl -s "$url" -H "Authorization: Bearer $FIZZY_API_TOKEN" -D /tmp/h.txt)
@@ -280,7 +294,7 @@ it's gone.
 ### List Cards by tag (whole-workspace)
 ```bash
 # board_id is ignored (gotcha 1); the tag filter DOES work. Still filter board.name client-side.
-curl -s "https://app.fizzy.do/6102589/cards.json?tag_ids[]={TAG_ID}" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards.json?tag_ids[]={TAG_ID}" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
@@ -289,7 +303,7 @@ curl -s "https://app.fizzy.do/6102589/cards.json?tag_ids[]={TAG_ID}" \
 > **`.json` is mandatory on EVERY card/resource endpoint — reads AND writes.** `GET /cards/{N}`, `PUT /cards/{N}`, `POST /cards/{N}/comments`, `/assignments`, `/taggings` etc. all require the `.json` suffix. The bare path is served as a session-authenticated HTML route and rejects the bearer token (GET/PUT → `401 "HTTP Token: Access denied."`; action POSTs → `422`). When any Fizzy call 401/422s for no obvious reason, the first thing to check is a missing `.json`.
 
 ```bash
-curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
@@ -314,15 +328,15 @@ Do NOT use `/boards/{BOARD_ID}/columns/{COL_ID}/cards` (that endpoint returns 40
 **`column_id` in the create payload is SILENTLY IGNORED** — the card lands in the **Maybe?** lane (`column == null`) no matter what you pass. To place it in a column you must **create-then-triage**: POST the card, then `POST /cards/{N}/triage.json` with `{column_id}` (the same endpoint used to move an existing card). Verified 3× 2026-06-22 (#1575/#1576/#1578 all created with `column_id` in the payload, all landed column-less).
 ```bash
 # 1. Create (column_id omitted — it would be ignored anyway); grab N from the Location header
-curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards.json" \
+curl -s -D - -o /dev/null -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/{BOARD_ID}/cards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -d '{"card": {"title": "Card title", "description": "<p>Description here</p>"}}'
-# Location: /6102589/cards/{N}.json
+# Location: /{FIZZY_ACCOUNT_ID}/cards/{N}.json
 
 # 2. Triage it into the target column
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{N}/triage.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{N}/triage.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -333,7 +347,7 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{N}/triage.json" \
 #    Steps 1-2 were already documented when #2128 and #2161 were lost: a 201 plus a
 #    204 still leaves a floating card if the column id was wrong or the triage silently
 #    no-op'd. Only this read proves it. (fizzy-file-card does this for you.)
-curl -s "https://app.fizzy.do/6102589/cards/{N}.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{N}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
   | python3 -c 'import sys,json; c=json.load(sys.stdin); print("column:", (c.get("column") or {}).get("name") or "❌ FLOATING IN MAYBE PILE")'
 ```
@@ -345,7 +359,7 @@ For title/description/general field updates. **Does NOT accept `column_id`** —
 
 **PUT replaces the ENTIRE card** — any field you omit is wiped to empty. Always GET the card first and resend every field you want to keep (e.g. include the existing `title` when you only mean to change `description`).
 ```bash
-curl -s -X PUT "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
+curl -s -X PUT "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -355,7 +369,7 @@ curl -s -X PUT "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
 ### Move Card to Column
 Use the `triage.json` action endpoint. Returns `204 No Content` on success. `PUT /cards/{N}` with `column_id` returns 400 — don't try it.
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/triage.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/triage.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -366,13 +380,13 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/triage.json" \
 "Done" is card closure, not a column move. Returns `204 No Content`. The card leaves its column
 and drops out of the per-column endpoint — list it back via `indexed_by=closed` (gotcha 3 above).
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/closure.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/closure.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
 ### Add Comment
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -382,7 +396,7 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
 ### Assign User
 Note: POST toggles assignment (assign if unassigned, unassign if assigned). Response is 204 No Content.
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/assignments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/assignments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"assignee_id": "USER_ID"}'
@@ -390,7 +404,7 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/assignments.json" \
 
 ### Add Tags
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/taggings.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/taggings.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"tag_ids": ["TAG_ID"]}'
@@ -398,13 +412,13 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/taggings.json" \
 
 ### List Tags
 ```bash
-curl -s "https://app.fizzy.do/6102589/tags.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/tags.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
 ### List Users
 ```bash
-curl -s "https://app.fizzy.do/6102589/users.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/users.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 ```
 
@@ -415,7 +429,7 @@ hardcode a per-page size or stop on the first short page.** Follow the `Link` re
 `rel="next"` is absent, then assert the fetched count == `X-Total-Count`:
 
 ```
-Link: <https://app.fizzy.do/6102589/cards?page=2>; rel="next"
+Link: <https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards?page=2>; rel="next"
 ```
 
 See **Reading a Board (cards + columns) — AUTHORITATIVE** above for the full paginator and the

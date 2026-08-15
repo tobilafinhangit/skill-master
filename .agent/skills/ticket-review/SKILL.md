@@ -61,12 +61,12 @@ If `--column` is used, fetch all cards in that column but **cap at 3 cards**. If
 source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
 
 # Get card details
-CARD_JSON=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
+CARD_JSON=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Accept: application/json")
 
 # Get all comments on the card
-COMMENTS_JSON=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+COMMENTS_JSON=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Accept: application/json")
 ```
@@ -213,7 +213,7 @@ The review is posted as **two separate comments** on the card so the PM can read
 
 ```bash
 # Comment 1 — engineering review
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -221,7 +221,7 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
 # 201 = success
 
 # Comment 2 — PM scope change summary (post AFTER comment 1 succeeds)
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
@@ -274,7 +274,7 @@ When `--column` is specified:
 
 - **Always use `.json` suffix** on action endpoints (comments, triage, assignments)
 - **Token**: `source .env.local` or `source congrats/.env.local` -> `$FIZZY_API_TOKEN`
-- **Account slug**: `6102589`
+- **Account slug**: `{FIZZY_ACCOUNT_ID}` (your Fizzy/Basecamp account slug — see the setup note in the `fizzy` skill)
 - **Comments endpoint**: `POST /cards/{NUMBER}/comments.json` with `{"comment": {"body": "..."}}`
 - **Card details**: `GET /cards/{NUMBER}.json`
 - **Card comments**: `GET /cards/{NUMBER}/comments.json`

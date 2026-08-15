@@ -14,6 +14,8 @@ metadata:
   updated: 2026-07-31
 argument-hint: "[date-range or commit-range] [newsletter|both]"
 ---
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 
 # Generating Release Notes
 
@@ -439,10 +441,10 @@ Each project must define these values. Look in these locations (in order): `.cla
 
 | Field | Where to find |
 |-------|---------------|
-| Account ID | `6102589` (shared across all VettedAI projects) |
+| Account ID | `{FIZZY_ACCOUNT_ID}` (your Fizzy account slug) |
 | Board ID | Project-specific — check CLAUDE.md, memory, or fizzy skill |
 | Token | `.env.local` as `FIZZY_API_TOKEN` (path varies per project) |
-| Endpoint | `POST https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards.json` |
+| Endpoint | `POST https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/{BOARD_ID}/cards.json` |
 
 **Important:** Always use `.json` suffix on the endpoint and include `User-Agent: VettedAI/1.0` header — without these Fizzy returns 401/422.
 
@@ -474,7 +476,7 @@ payload = json.dumps({"card": {
 
 result = subprocess.run([
     "curl", "-s", "-i", "-X", "POST",
-    "https://app.fizzy.do/6102589/boards/{BOARD_ID}/cards.json",
+    "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/{BOARD_ID}/cards.json",
     "-H", "Authorization: Bearer {TOKEN}",
     "-H", "User-Agent: VettedAI/1.0",
     "-H", "Content-Type: application/json",
@@ -484,7 +486,7 @@ print(result.stdout[:500])
 PYEOF
 ```
 
-Extract the card number from the `Location` header (e.g., `/6102589/cards/500.json` → card #500). Report the card number to the user when done.
+Extract the card number from the `Location` header (e.g., `/{FIZZY_ACCOUNT_ID}/cards/500.json` → card #500). Report the card number to the user when done.
 
 #### If board details are unknown
 

@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 # Writing Great Skills
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 A skill (or a `.claude/rules/*.md` rule) exists to wrangle determinism out of a stochastic system. **Predictability** — the agent taking the same *process* every run — is the root virtue; every lever below serves it.
 
 This is the *quality* reference. For scaffolding a new skill (folders, frontmatter, symlinks) use `/creating-skills`; for "do we already have a skill for X?" use `/skill-strategist`. This skill is what you hold those outputs — and the rules corpus — to.

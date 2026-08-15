@@ -16,6 +16,8 @@ triggers:
   - upload to fizzy
 invocable: true
 ---
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 
 # fizzy-cli-extras
 
@@ -61,7 +63,7 @@ fizzy() {
     dir=$(dirname "$dir")
   done
   if [ -n "$token" ]; then
-    FIZZY_TOKEN="$token" FIZZY_ACCOUNT=6102589 command fizzy "$@"
+    FIZZY_TOKEN="$token" FIZZY_ACCOUNT={FIZZY_ACCOUNT_ID} command fizzy "$@"
   else
     command fizzy "$@"
   fi
@@ -75,7 +77,7 @@ cd ~/code/repos/vettedai-audition-supabase-version
 fizzy board list   # should return 9 boards
 ```
 
-The function walks up from `$PWD` to find `.env.local`, so it works from any of the three Fizzy-enabled repos (vettedai-audition, congrats, backend-restructing). Account `6102589` is shared across all three (same Generous Circle org).
+The function walks up from `$PWD` to find `.env.local`, so it works from any of the three Fizzy-enabled repos (vettedai-audition, congrats, backend-restructing). Account `{FIZZY_ACCOUNT_ID}` is a placeholder — swap in your own Fizzy account slug and keep it consistent across your Fizzy-enabled repos.
 
 ## What this skill does NOT do
 
@@ -121,7 +123,7 @@ fizzy auth status         # current auth state
 fizzy identity            # show current user + account info
 ```
 
-Use when: confirming which Fizzy account the CLI is hitting. Note: the `fizzy()` function in `~/.zshrc` hardcodes `FIZZY_ACCOUNT=6102589` (Generous Circle). If you ever need a different account, edit the function — don't run `fizzy auth login`.
+Use when: confirming which Fizzy account the CLI is hitting. Note: the `fizzy()` function in `~/.zshrc` hardcodes `FIZZY_ACCOUNT={FIZZY_ACCOUNT_ID}` — replace with your own account slug. If you ever need a different account, edit the function — don't run `fizzy auth login`.
 
 ## Output format
 
@@ -138,7 +140,7 @@ fizzy search "auth" | jq '.data | length'
 |---------|--------------|--------|
 | `command not found: fizzy` | CLI not installed on this machine | Fall back to `/fizzy` raw-curl patterns; do not block on install |
 | `Not authenticated` from `fizzy auth status` | `.env.local` missing in this dir tree, or `FIZZY_API_TOKEN` blank | `cd` to a repo that has `.env.local`; verify `grep ^FIZZY_API_TOKEN .env.local` returns a value |
-| `No account configured` | Function didn't set `FIZZY_ACCOUNT` | Check `~/.zshrc` function still hardcodes `FIZZY_ACCOUNT=6102589` |
+| `No account configured` | Function didn't set `FIZZY_ACCOUNT` | Check `~/.zshrc` function still hardcodes your `FIZZY_ACCOUNT` |
 | CLI hangs on network | Flaky connection | `Ctrl+C` and retry; wrap unattended calls with `timeout 30s fizzy ...` |
 | Output JSON shape changed unexpectedly | Newer CLI version installed | Check `fizzy version`; this skill validated against v3.0.3 |
 

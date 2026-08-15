@@ -339,7 +339,6 @@ Use semantic versioning:
 ### Documentation
 - [Installation Guide (Multi-IDE)](installation-multi-ide.md)
 - [Frontmatter Template](skill-frontmatter-template.md)
-- [Plan](../.claude/plans/polymorphic-dreaming-bear.md)
 
 ### External Resources
 - [Agent Skills Open Standard](https://agentskills.io)

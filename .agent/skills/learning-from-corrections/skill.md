@@ -6,6 +6,8 @@ version: 2.3.0
 
 # Learning from Corrections
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Extracts lessons from mistakes and writes them to `.claude/rules/` files. Keeps CLAUDE.md as a slim index.
 
 ## When to Use

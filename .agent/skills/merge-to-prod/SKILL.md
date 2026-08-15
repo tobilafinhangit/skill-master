@@ -7,6 +7,8 @@ license: MIT
 
 # Merge to Prod
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Ship a batch of ready-to-prod tickets in one PR. Audit the **Merge to Prod** column against git, surface discrepancies, open or update the staging→main PR.
 
 **Announce at start:** "I'm using the merge-to-prod skill."
@@ -64,7 +66,7 @@ if [ "$DRIFT" -gt 0 ]; then
 fi
 ```
 
-**If `DRIFT` > 0 → STOP. Do not build the PR yet.** The staging→main merge will conflict. Offer to **reconcile first**: merge `origin/$MAIN` into `$STAGING` in an **isolated worktree** (never the primary tree — see `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`), authored as `tobi@venturefor.africa` (`.claude/rules/worktree-git-author-identity.md`), after **enumerating** exactly what it will pull (the `+` list above) and confirming with the user. Once reconciled and pushed, `git cherry` returns no `+` lines and the promotion PR merges clean. Only then continue to Phase 2. (This is the *forward* guard; `hotfix` Phase 5 is the *upstream* fix — it merges `main` back into staging right after each hotfix so drift never accumulates. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md` for the dual-SHA-vs-merge-base trap.)
+**If `DRIFT` > 0 → STOP. Do not build the PR yet.** The staging→main merge will conflict. Offer to **reconcile first**: merge `origin/$MAIN` into `$STAGING` in an **isolated worktree** (never the primary tree — see `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`), authored as `{WORKTREE_GIT_EMAIL}` (your own repo-automation identity) (`.claude/rules/worktree-git-author-identity.md`), after **enumerating** exactly what it will pull (the `+` list above) and confirming with the user. Once reconciled and pushed, `git cherry` returns no `+` lines and the promotion PR merges clean. Only then continue to Phase 2. (This is the *forward* guard; `hotfix` Phase 5 is the *upstream* fix — it merges `main` back into staging right after each hotfix so drift never accumulates. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md` for the dual-SHA-vs-merge-base trap.)
 
 ### Optional override: `.claude/skills/merge-to-prod.json`
 
@@ -95,7 +97,7 @@ git fetch origin --quiet
 TMP=$(mktemp); echo "[]" > "$TMP"
 page=1
 while :; do
-  PAGE=$(curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns/$MERGE_COL_ID/cards.json?page=$page" \
+  PAGE=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/$BOARD_ID/columns/$MERGE_COL_ID/cards.json?page=$page" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN" \
     -H "User-Agent: skill-master/merge-to-prod")
   N=$(echo "$PAGE" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
@@ -109,7 +111,7 @@ CARDS=$(cat "$TMP"); rm -f "$TMP" "$TMP.page"
 
 # Sanity check: the fetched count MUST equal the column's X-Total-Count header.
 TOTAL=$(curl -s -D - -o /dev/null \
-  "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns/$MERGE_COL_ID/cards.json" \
+  "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/$BOARD_ID/columns/$MERGE_COL_ID/cards.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: skill-master/merge-to-prod" \
   | grep -i '^x-total-count:' | tr -dc '0-9')
 echo "Fetched $(echo "$CARDS" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))') of $TOTAL cards in the column."
@@ -259,7 +261,7 @@ Draft a **terse** PR title + body (keep it short — no filler prose):
 Merging N tickets from the **Merge to Prod** column of the {Board Name} board.
 
 ### Tickets
-- #<num> [Title](https://app.fizzy.do/6102589/cards/<num>) — one-line note
+- #<num> [Title](https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<num>) — one-line note
 - …
 
 ### Infra / chore
@@ -295,14 +297,14 @@ On confirmation:
 **Close shipped cards** — this is a **state change**, not a column move:
 ```bash
 # Fizzy "Done" is card closure. There is no "Done" column with a column_id.
-curl -s -X POST "https://app.fizzy.do/6102589/cards/<N>/closure.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/closure.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
 # 204 = success
 ```
 
 **Move premature cards back to QA to be Confirmed:**
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/<N>/triage.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/triage.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"column_id\": \"$QA_COLUMN_ID\"}"
@@ -311,7 +313,7 @@ curl -s -X POST "https://app.fizzy.do/6102589/cards/<N>/triage.json" \
 
 **Post a comment on each moved-back card** explaining why (HTML, Fizzy-friendly):
 ```bash
-curl -s -X POST "https://app.fizzy.do/6102589/cards/<N>/comments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"comment": {"body": "<p>Moved back from <b>Merge to Prod</b> during the YYYY-MM-DD batch (PR #NNN). PR #MMM is still open — code is not in integration branch yet. Re-test once merged.</p>"}}'
@@ -344,7 +346,7 @@ for N in $TICKETS; do echo "  - #$N"; done
 
 # 4. Close each
 for N in $TICKETS; do
-  curl -s -X POST "https://app.fizzy.do/6102589/cards/$N/closure.json" \
+  curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/$N/closure.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN"
 done
 ```
@@ -417,7 +419,7 @@ Used by Phase 1 to derive column IDs from the board.
 
 **Lookup by name** (fallback when column ID not known):
 ```bash
-curl -s "https://app.fizzy.do/6102589/boards/$BOARD_ID/columns.json" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/$BOARD_ID/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   | python3 -c "import json,sys; [print(c['id']) for c in json.load(sys.stdin) if c['name'].lower()=='merge to prod']"
 ```

@@ -69,8 +69,8 @@ Rules of engagement:
 - Token discipline: for any wider search spawn an Explore subagent on haiku and take only its summary. Never dump SQL result sets or whole migration files into context — the ticket already cites the exact functions/files.
 - Work in a worktree off lovable-staging, set git identity BEFORE the first commit:
     git worktree add -b <ID>/<short-slug> .claude/worktrees/<short-slug> origin/lovable-staging
-    git -C .claude/worktrees/<short-slug> config user.email "tobi@venturefor.africa"
-    git -C .claude/worktrees/<short-slug> config user.name  "tobilafinhangit"
+    git -C .claude/worktrees/<short-slug> config user.email "{WORKTREE_GIT_EMAIL}"
+    git -C .claude/worktrees/<short-slug> config user.name  "{WORKTREE_GIT_NAME}"
 - Follow red/green (test-driven-development skill): <the specific failing assertion(s) to prove first, drawn from the ticket's Verification section>.
 - Hard constraint: <the ticket's explicit "do NOT touch" / banned-pattern list — pull verbatim from the ticket, don't paraphrase>.
 - The real work: <2-4 sentences summarizing the actual implementation shape, pulling any "mirror existing pattern at <file:line>" anchors from the ticket verbatim>.
@@ -117,7 +117,7 @@ Each block is deliberately lean. This epic was tech-reviewed — see TECH-REVIEW
 
 ```bash
 source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
-curl -s -X POST "https://app.fizzy.do/6102589/cards/{N}/comments.json" \
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{N}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
   -H "Content-Type: application/json" \
   -d '{"comment": {"body": "<h2>Build Prompt</h2><p>Paste the block below into a fresh session to build this ticket end-to-end. Everything it needs is on this card (description + tech-review comment) — no local files required.</p><pre>...the prompt block...</pre>"}}'
@@ -128,9 +128,9 @@ This is not optional for a remote assignee — a `BUILD-PROMPTS.md` sitting only
 **Self-containment check (mandatory for any card with a remote/unknown-access assignee) before reporting the batch done:** fetch the card's description AND all its comments via the Fizzy API and grep for `.claude/` — any hit is a broken pointer for that assignee and must be fixed before moving on.
 
 ```bash
-curl -s "https://app.fizzy.do/6102589/cards/{N}.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{N}.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
   | python3 -c "import json,sys; print(json.load(sys.stdin).get('description',''))" | grep -n "\.claude/"
-curl -s "https://app.fizzy.do/6102589/cards/{N}/comments.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
+curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{N}/comments.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
   | python3 -c "import json,sys; [print(c.get('body',{}).get('plain_text','')) for c in json.load(sys.stdin)]" | grep -n "\.claude/"
 # Expected: no output for a remote-assignee card. Any hit → fix before reporting done.
 ```

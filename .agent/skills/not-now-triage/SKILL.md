@@ -5,6 +5,8 @@ description: Triage the "Not Now" (postponed) lane of a Fizzy board — list the
 
 # Not Now Triage
 
+> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
+
 Clean a Fizzy board's **Not Now** lane. Cards land there by **auto-postpone** (a board's `auto_postpone_period_in_days` — 90 on Bugs, 30 on Congrats — moves idle cards out of their column), so the lane is mostly *resolved-but-never-closed* work plus genuine stale items. The job: close what actually shipped, resurface what's still real, and leave the genuinely-ambiguous for a human — **never bulk-close on vibes**.
 
 **Announce at start:** "I'm using the not-now-triage skill."
@@ -17,7 +19,7 @@ Clean a Fizzy board's **Not Now** lane. Cards land there by **auto-postpone** (a
 - **Not Now is NOT a column.** It's the `postponed == true` card flag. (Maybe? = `column == null`; Done = `closed == true`.) See the `/fizzy` skill's "Reading a Board" section.
 - **List it via:** `GET /cards.json?board_ids[]={BOARD}&indexed_by=not_now` — the **array** param `board_ids[]=` scopes correctly (singular `board_id=` is silently ignored), and curl MUST use `-g` (globoff) or it mangles the `[]`. Paginate via the `Link: rel="next"` header; assert the fetched count equals `X-Total-Count`.
 - **Helper (if present in the repo):** `scripts/fizzy-lane.sh <board_id> not_now table` does all of the above (raw curl, paginates, asserts count). Use it when available; otherwise inline the curl. (Lives in the vettedai repo; not guaranteed in sister repos.)
-- Token: `source .env.local` → `$FIZZY_API_TOKEN`. Account is `6102589`.
+- Token: `source .env.local` → `$FIZZY_API_TOKEN`. Account is `{FIZZY_ACCOUNT_ID}` (your own account slug).
 
 ## Board reference
 | Board | Board ID | Triage/intake column (resurface target) |
@@ -74,11 +76,11 @@ Final buckets:
 Print one consolidated table (close N / resurface M / leave K) and **pause**. Closing is reversible (`DELETE /cards/<N>/closure.json` reopens), but bulk mutation still gets one confirmation. On approval:
 ```bash
 # Close
-curl -s -X POST "https://app.fizzy.do/6102589/cards/<N>/closure.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: not-now-triage/1.0"   # 204
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/closure.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: not-now-triage/1.0"   # 204
 # Resurface (un-postpones + places in column)
-curl -s -X POST "https://app.fizzy.do/6102589/cards/<N>/triage.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "Content-Type: application/json" -H "User-Agent: not-now-triage/1.0" -d "{\"column_id\": \"$COL\"}"   # 204
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/triage.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "Content-Type: application/json" -H "User-Agent: not-now-triage/1.0" -d "{\"column_id\": \"$COL\"}"   # 204
 # Comment WHY it was resurfaced (HTML body, not markdown)
-curl -s -X POST "https://app.fizzy.do/6102589/cards/<N>/comments.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "Content-Type: application/json" -H "User-Agent: not-now-triage/1.0" -d "{\"body\": \"<p>Resurfaced from Not Now during triage: …still-open reason… Moved to <b>Technical</b>.</p>"}"   # 201
+curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/comments.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "Content-Type: application/json" -H "User-Agent: not-now-triage/1.0" -d "{\"body\": \"<p>Resurfaced from Not Now during triage: …still-open reason… Moved to <b>Technical</b>.</p>"}"   # 201
 ```
 Then re-list the lane to confirm the new count.
 
