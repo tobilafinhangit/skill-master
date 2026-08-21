@@ -7,8 +7,6 @@ license: MIT
 
 # QA Handoff
 
-> **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
-
 After a PR is approved (or a direct push to integration is done), hand it off to QA in one step — merge the PR, post a testing guide, move the card, assign the tester, sync qa-mirror.
 
 **Announce at start:** "I'm using the qa-handoff skill to hand this off to QA."
@@ -76,7 +74,7 @@ Run this **first**, before anything else. It's read-only and cheap.
 
 ```bash
 # Does this card have a prior QA-fail in its history?
-COMMENTS=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
+COMMENTS=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0")
 
 # OWNER = whoever is doing this handoff (you). Excluded so the detector can't
@@ -153,7 +151,7 @@ BRANCH=$(git branch --show-current)
 LAST_COMMIT=$(git log --oneline -1)
 source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
 
-CARD_JSON=$(curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}.json" \
+CARD_JSON=$(curl -s "https://app.fizzy.do/6102589/cards/{NUMBER}.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN")
 ```
 
@@ -296,7 +294,7 @@ If `stagingDbRef` was unset and Step 3.5 had to prompt the user instead of auto-
 - Checkboxes: `☐` character (Fizzy doesn't support `<input>`)
 
 ```bash
-curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments.json" \
+curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"comment": {"body": "<h2>QA Testing Guide — PR #...</h2>..."}}'
@@ -308,7 +306,7 @@ curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/comments
 Using the QA column ID derived from `card.board.id` in Step 1:
 
 ```bash
-curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/triage.json" \
+curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/triage.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"column_id\": \"$QA_COLUMN_ID\"}"
@@ -325,7 +323,7 @@ Elvis's user ID: `03fcio1h8spstjpkc82vciugk`
 
 ```bash
 if ! echo "$ASSIGNEES" | grep -q "03fcio1h8spstjpkc82vciugk"; then
-  curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/{NUMBER}/assignments.json" \
+  curl -s -X POST "https://app.fizzy.do/6102589/cards/{NUMBER}/assignments.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"assignee_id": "03fcio1h8spstjpkc82vciugk"}'
@@ -448,15 +446,43 @@ ROUTE_CHANGES=$(gh pr diff {NUMBER} --name-only | grep -iE '(routes?|controller|
 
 **This is the sentinel for the "qa-mirror got used as a scratch branch" failure class.** `qa-mirror` must equal the integration branch **plus nothing** — but people occasionally merge a feature branch *directly into qa-mirror* to test against prod data ("...into qa-mirror for QA testing", "...for impersonation repro") and never clean it up. Each such merge leaves a **non-merge commit unique to qa-mirror** that never reached the integration branch → off the promotion path → silently at risk of never reaching prod. One such orphan (a `#1850` admin-gate fix) sat latent for days and masked a real access regression (2026-07-11 cleanup). Nothing *triggers* a check, so the drift is invisible until it's painful. This step is that trigger — read-only, cheap, runs every handoff.
 
+**`.deploy.lock`-only commits are filtered separately, not treated as this class of drift.** `scripts/deploy-edge-fn.sh` commits a `.deploy.lock` bookkeeping file on whichever branch it's run from and can push straight to it — a deploy run from `qa-mirror` legitimately leaves a lock commit that never reaches the integration branch, by construction, not because real work is missing (2026-08-21, commit `db074c1d` — flagged as drift, but `lovable-staging`'s own locks for those same functions were already same-or-newer). The detector below skips a candidate only when every file it touches is a `.deploy.lock` AND the integration branch's own copy for that function is same-or-newer — a genuinely stale lock (integration branch missing it or older) still surfaces.
+
 Run **before** the Step 9 merge (so a fresh sync merge doesn't obscure pre-existing orphans). `git cherry` compares by patch-id, so already-promoted commits (even under a different SHA) don't false-positive:
 
 ```bash
 git fetch origin $QA_MIRROR_BRANCH $INTEGRATION_BRANCH --quiet
 # '+' = a patch on qa-mirror NOT present on the integration branch; '-' = already there.
-ORPHANS=$(git cherry origin/$INTEGRATION_BRANCH origin/$QA_MIRROR_BRANCH 2>/dev/null \
-  | grep '^+' | while read -r _ sha; do
-      git log -1 --no-merges --format='%h %s' "$sha" 2>/dev/null
-    done)
+CANDIDATES=$(git cherry origin/$INTEGRATION_BRANCH origin/$QA_MIRROR_BRANCH 2>/dev/null | grep '^+' | awk '{print $2}')
+
+ORPHANS=""
+for sha in $CANDIDATES; do
+  # .deploy.lock-only false-positive filter (2026-08-21): deploy-edge-fn.sh commits
+  # a .deploy.lock per function on whichever branch it's run from and can push
+  # straight to that branch — a legitimate deploy from qa-mirror leaves a commit
+  # that never reaches the integration branch by construction, not because
+  # anything is missing. It's noise, not drift, UNLESS the integration branch's
+  # own lock for that fn is actually older (a real gap). Skip only when every
+  # changed file is a .deploy.lock AND the integration branch's copy is same-or-newer.
+  FILES=$(git show --name-only --format='' "$sha" 2>/dev/null)
+  NON_LOCK=$(echo "$FILES" | grep -v '\.deploy\.lock$' | grep -c .)
+  if [ -n "$FILES" ] && [ "$NON_LOCK" = "0" ]; then
+    STALE=0
+    for f in $FILES; do
+      NEW_TS=$(git show "$sha:$f" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('deployed_at',''))" 2>/dev/null)
+      CUR_TS=$(git show "origin/$INTEGRATION_BRANCH:$f" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('deployed_at',''))" 2>/dev/null)
+      # integration branch missing the file entirely, or strictly older → real gap, don't skip
+      if [ -z "$CUR_TS" ] || [ "$CUR_TS" \< "$NEW_TS" ]; then
+        STALE=1
+      fi
+    done
+    [ "$STALE" = "0" ] && continue   # superseded on integration branch — not real drift, skip
+  fi
+  ORPHANS="$ORPHANS
+$(git log -1 --no-merges --format='%h %s' "$sha" 2>/dev/null)"
+done
+ORPHANS=$(echo "$ORPHANS" | sed '/^$/d')
+
 if [ -n "$ORPHANS" ]; then
   echo "⚠ qa-mirror DRIFT — non-merge commits unique to qa-mirror (never reached $INTEGRATION_BRANCH):"
   echo "$ORPHANS"
@@ -532,7 +558,7 @@ Print the nudge as the last line of the handoff confirmation when it fires. Thre
 
 - Always use `.json` suffix on all endpoints (returns 401 without it)
 - Token: `source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null` → `$FIZZY_API_TOKEN`
-- Account slug: `{FIZZY_ACCOUNT_ID}` (your Fizzy/Basecamp account slug — see the setup note in the `fizzy` skill)
+- Account slug: `6102589`
 - Assignments TOGGLE — always check current state first
 - Card creation returns URL in `Location` header, not response body
 
