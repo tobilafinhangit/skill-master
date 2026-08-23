@@ -1,7 +1,7 @@
 ---
 name: mcp-gap-capture
-description: Capture capability gaps in the Vetted MCP — when you (the agent) wanted to use a Vetted MCP tool but it didn't exist or wasn't sufficient and you fell back to raw Supabase MCP, direct SQL, or manual work. Logs a redacted, de-duplicated gap record to a shared JSONL sink so we can see "most-requested missing Vetted MCP capabilities" across all sessions/repos. Use when bypassing the Vetted MCP, or at session end as a backstop sweep.
-version: 1.0.0
+description: Capture capability gaps in the Vetted MCP — when you (the agent) wanted to use a Vetted MCP tool but it didn't exist or wasn't sufficient and you fell back to raw Supabase MCP, direct SQL, or manual work. Logs a redacted, de-duplicated gap record to a shared JSONL sink so we can see "most-requested missing Vetted MCP capabilities" across all sessions/repos. Use when bypassing the Vetted MCP, as a live self-review (scans the current session's own tool calls — no user description needed), or at session end as a backstop sweep.
+version: 1.1.0
 ---
 
 # MCP Gap Capture
@@ -19,7 +19,31 @@ an audit trail.
   freshest.
 - **Session-end sweep (backstop):** near the end of a session, review what you did via
   Supabase MCP / SQL and log any that "should have been" a Vetted MCP tool.
+- **Live self-review (invoke `/mcp-gap-capture`):** scan the *current* session's own
+  conversation + tool calls (already in your context) for Vetted-MCP bypasses and log them.
+  No user description needed — see Session Self-Review.
 - Explicitly via `/mcp-gap-capture`.
+
+## Session Self-Review (no user description needed)
+
+When invoked in a live session, you already have the conversation and tool calls in context.
+Use them — do NOT ask the user to describe gaps.
+
+1. Scan the session for every place you used **Supabase MCP**, **raw SQL**, or **manual
+   work** (DB queries, schema poking, candidate/project lookups done outside the Vetted
+   `vetted_*` tools).
+2. For each, ask: *should a Vetted MCP tool (`vetted_*`) have covered this?* If you clearly
+   expected (or wished for) a specific Vetted tool, that's the gap.
+3. Classify per Two-Tier Detection below:
+   - **Tier 1 (high):** you know the intent + the missing/existing tool — log directly.
+   - **Tier 2 (low):** unsure it "should have been" Vetted — run `log_gap.mjs --dry`, show
+     the user, log only after confirm.
+4. Call `log_gap.mjs` per gap (see How to Log). Pass `--agent` for the current agent; `repo`
+   comes from the repo's `.mcp-gap-capture.json`.
+
+This is the most reliable mode — the agent knows its own intent, so no transcript file is
+needed. It still can't see "intended but never attempted" work that left no trace in the
+conversation, and it's still self-reported (not a measured call-stream diff).
 
 ## Two-Tier Detection (false-positive gate)
 
