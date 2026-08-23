@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VettedAI — [Feature/Flow] · Annotatable Mockup</title>
+<style>
+  /* ─── Design tokens (match the repo's docs/design-references/README.md) ─── */
+  :root {
+    --ink:#211e2f; --muted:#706d7e; --line:#e8e5ed; --soft:#f8f7fb; --paper:#fff;
+    --brand:#6558d8; --brand-dark:#4e42be; --mint:#eeecff; --amber:#9a6208; --amber-soft:#fff8e9;
+    --red:#a83b38; --green:#0d6244; --green-soft:#dff4e8;
+    --shadow:0 12px 34px rgba(42,34,87,.09);
+  }
+  * { box-sizing:border-box }
+  body { margin:0; font:14px/1.45 Inter, ui-sans-serif, system-ui, sans-serif; color:var(--ink); background:#faf9f7 }
+  button { font:inherit; cursor:pointer }
+
+  .product-bar { height:58px; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:20px; padding:0 24px; position:sticky; top:0; z-index:5 }
+  .wordmark { font-weight:850; letter-spacing:-.8px; font-size:18px } .wordmark i { font-style:normal; color:var(--brand) }
+  main { max-width:1240px; margin:auto; padding:20px 0 90px }
+
+  /* ─── Annotation bar + note layer (LOAD-BEARING — keep verbatim) ─── */
+  .annot-bar { position:sticky; top:58px; z-index:6; background:#1c1a2c; color:#fff; display:flex; align-items:center; gap:16px; padding:9px 24px; font-size:12.5px; border-bottom:1px solid #2c2945 }
+  .annot-bar b { color:#b7a9ff } .annot-bar .hint { color:#a9a3c4 }
+  .btn-ex { border:1px solid #6b5fd9; background:#4e42be; color:#fff; border-radius:7px; padding:7px 12px; font-size:12.5px; font-weight:750 }
+  .btn-ex:hover { background:#5d50d6 } .btn-cl { border:0; background:none; color:#a9a3c4; font-size:12px } .btn-cl:hover{color:#fff}
+  .count { margin-left:auto; background:#2c2945; border-radius:999px; padding:3px 10px; font-size:11px; color:#c9c3ea }
+
+  .intro { background:var(--mint); border:1px solid #d9d5ff; border-radius:11px; padding:14px 16px; font-size:13px; color:#3a3560; margin-bottom:18px }
+  .intro b { color:var(--brand-dark) }
+
+  .frame { background:#fff; border:1px solid var(--line); border-radius:16px; margin:26px 0; box-shadow:0 1px 2px rgba(20,40,28,.03); overflow:hidden }
+  .frame > .frame-head { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-bottom:1px solid var(--line); background:var(--soft) }
+  .frame-head .t { font-weight:800; font-size:13px; letter-spacing:-.2px }
+  .frame-head .d { font-size:12px; color:var(--muted) }
+  .frame-body { padding:20px }
+
+  .tag { font-size:10px; font-weight:800; background:#1c1a2c; color:#fff; border-radius:999px; padding:2px 8px; margin-left:7px; vertical-align:2px; cursor:pointer; letter-spacing:.03em; border:0 }
+  .tag:hover { background:#4e42be }
+
+  .notepad { display:none; position:fixed; right:20px; bottom:20px; width:360px; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 24px 60px rgba(20,18,40,.25); z-index:40; overflow:hidden }
+  .notepad.open { display:block }
+  .notepad-head { background:#1c1a2c; color:#fff; padding:11px 14px; font-size:12.5px; font-weight:750; display:flex; justify-content:space-between; align-items:center }
+  .notepad-head button { border:0; background:none; color:#b9b3d8; font-size:12px }
+  .notepad-body { padding:12px 14px }
+  .notepad-body .el-label { font-size:11px; color:var(--brand-dark); font-weight:750; background:var(--mint); border-radius:6px; padding:3px 8px; display:inline-block; margin-bottom:8px }
+  .notepad-body textarea { width:100%; min-height:96px; border:1px solid var(--line); border-radius:9px; padding:9px 10px; font:inherit; font-size:12.5px; resize:vertical }
+  .notepad-body textarea:focus { outline:2px solid #d9d5ff; border-color:var(--brand) }
+  .notepad-foot { display:flex; justify-content:space-between; padding:0 14px 14px; gap:8px }
+  .notepad-foot button { border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:750 }
+  .nsave { background:var(--brand); color:#fff; border:0; flex:1 } .ndel { border:1px solid var(--line); background:#fff; color:var(--red) }
+  .saved { background:#dff4e8; color:#0d6244; font-size:11.5px; border-radius:7px; padding:6px 10px; display:none }
+  .legend { font-size:12px; color:#8884a0; margin:18px 0 2px; padding:0 4px }
+  .legend b { color:#6a64c0 }
+  @media(max-width:900px){ .count{display:none} }
+</style>
+</head>
+<body>
+
+<div class="product-bar"><div class="wordmark">vetted<i>AI</i></div><span style="margin-left:auto">&nbsp;</span></div>
+
+<div class="annot-bar">
+  <b>✎ Annotate this mockup</b>
+  <span class="hint">Click any <b>#n</b> chip on an element &rarr; type your note &rarr; Save. Notes persist in this tab.</span>
+  <span class="count" id="annoCount">0 notes</span>
+  <button class="btn-ex" id="btnExport">⤓ Export my feedback</button>
+  <button class="btn-cl" id="btnClear">Clear all</button>
+</div>
+
+<main>
+  <div class="intro">
+    <b>[Feature]</b> — how this should feel end-to-end. <b>[N]</b> frames:
+    <b>1</b> [Frame 1] &middot; <b>2</b> [Frame 2] &middot; <b>3</b> [Frame 3].
+    Annotate what you want changed — every decision-worthy element has a <b>#n</b> chip.
+  </div>
+
+  <!-- ═══════════════ FRAME 1 ═══════════════ -->
+  <div class="frame">
+    <div class="frame-head">
+      <div><span class="t">Frame 1 · [Title]</span></div>
+      <div class="d">[Description]</div>
+    </div>
+    <div class="frame-body">
+      <p>Replace this body with your mockup. Put a <button class="tag" data-note="frame1-example">#1</button> chip on any element you want the user to rule on, and add its human label to the <code>LABELS</code> map in the script below.</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════ FRAME 2 ═══════════════ -->
+  <div class="frame">
+    <div class="frame-head">
+      <div><span class="t">Frame 2 · [Title]</span></div>
+      <div class="d">[Description]</div>
+    </div>
+    <div class="frame-body">
+      <p>Frame 2 body.</p>
+    </div>
+  </div>
+
+  <p class="legend"><b>Open questions to annotate:</b> (a) [Q1]? (b) [Q2]? (c) [Q3]?</p>
+</main>
+
+<div class="notepad" id="notepad">
+  <div class="notepad-head"><span>Note on <span id="npEl"></span></span><button id="npClose">✕</button></div>
+  <div class="notepad-body">
+    <span class="el-label" id="npLabel"></span>
+    <textarea id="npText" placeholder="Your feedback on this element…"></textarea>
+  </div>
+  <div class="notepad-foot">
+    <button class="ndel" id="npDelete">Remove note</button>
+    <button class="nsave" id="npSave">Save note</button>
+  </div>
+  <div class="saved" id="npSaved" style="margin:0 14px 14px">Saved ✓</div>
+</div>
+
+<script>
+(function () {
+  const STORE_KEY = 'vetted-mockup-annotations-v1';   // CHANGE per mockup to avoid collisions
+  const notes = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+  const current = { key: null };
+
+  // Element labels — human-readable names for every annotated element. ADD YOUR OWN.
+  const LABELS = {
+    'frame1-example': 'Frame 1 · Example element',
+  };
+
+  document.querySelectorAll('.tag[data-note]').forEach((btn) => {
+    const key = btn.getAttribute('data-note');
+    btn.title = 'Annotate ' + (LABELS[key] || key);
+    if (notes[key]) btn.style.background = '#ffb83d';
+  });
+
+  const renderCount = () => {
+    const n = Object.keys(notes).filter((k) => notes[k] && notes[k].trim()).length;
+    document.getElementById('annoCount').textContent = n + (n === 1 ? ' note' : ' notes');
+  };
+
+  function openNote(key, ev) {
+    if (ev) ev.stopPropagation();
+    current.key = key;
+    document.getElementById('npLabel').textContent = LABELS[key] || key;
+    document.getElementById('npText').value = notes[key] || '';
+    document.getElementById('npSaved').style.display = 'none';
+    document.getElementById('notepad').classList.add('open');
+    document.getElementById('npText').focus();
+  }
+
+  document.querySelectorAll('.tag[data-note]').forEach((btn) => {
+    btn.addEventListener('click', (e) => openNote(btn.getAttribute('data-note'), e));
+  });
+
+  document.getElementById('npClose').addEventListener('click', () => {
+    document.getElementById('notepad').classList.remove('open'); current.key = null;
+  });
+  document.getElementById('npSave').addEventListener('click', () => {
+    if (!current.key) return;
+    const v = document.getElementById('npText').value.trim();
+    if (v) { notes[current.key] = v; } else { delete notes[current.key]; }
+    localStorage.setItem(STORE_KEY, JSON.stringify(notes));
+    const b = document.querySelector('.tag[data-note="' + current.key + '"]');
+    if (b) b.style.background = v ? '#ffb83d' : '';
+    document.getElementById('npSaved').style.display = 'block';
+    renderCount();
+    document.getElementById('notepad').classList.remove('open'); current.key = null;
+  });
+  document.getElementById('npDelete').addEventListener('click', () => {
+    if (!current.key) return;
+    delete notes[current.key];
+    localStorage.setItem(STORE_KEY, JSON.stringify(notes));
+    const b = document.querySelector('.tag[data-note="' + current.key + '"]');
+    if (b) b.style.background = '';
+    document.getElementById('npText').value = '';
+    renderCount();
+    document.getElementById('notepad').classList.remove('open'); current.key = null;
+  });
+  document.getElementById('btnClear').addEventListener('click', () => {
+    if (!confirm('Clear all annotations?')) return;
+    Object.keys(notes).forEach((k) => delete notes[k]);
+    localStorage.removeItem(STORE_KEY);
+    document.querySelectorAll('.tag[data-note]').forEach((b) => (b.style.background = ''));
+    renderCount();
+  });
+
+  // Export: a .txt with element → annotation, parseable back by an agent.
+  document.getElementById('btnExport').addEventListener('click', () => {
+    const filled = Object.keys(notes).filter((k) => notes[k] && notes[k].trim());
+    let txt = 'VettedAI — [Feature] mockup annotations\n' + '='.repeat(52) + '\n\n';
+    filled.forEach((k, i) => {
+      txt += (i + 1) + ') ' + (LABELS[k] || k) + '\n   → ' + notes[k] + '\n\n';
+    });
+    if (filled.length === 0) txt += 'No notes yet. Click a #n chip, type, and Save.\n';
+    txt += '— export from ' + new Date().toISOString().slice(0, 10) + '\n';
+    const blob = new Blob([txt], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '[feature]-feedback.txt';
+    document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 60);
+  });
+
+  renderCount();
+})();
+</script>
+</body>
+</html>
