@@ -3,15 +3,17 @@ name: generating-release-notes
 description: >
   Use when a batch of engineering work is complete. Generates team-readable
   release notes OR polished community-facing newsletter content from git
-  history. Supports internal (default), newsletter, or both output modes.
-version: 2.2.0
+  history. Newsletter mode is demo-led: sells the capability and points every
+  action at booking a demo, not self-service. Supports internal (default),
+  newsletter, or both output modes.
+version: 2.3.0
 license: MIT
 metadata:
   author: VettedAI
   category: communication
   tags: [release-notes, changelog, newsletter, community, team-communication, qa, product]
   created: 2026-02-18
-  updated: 2026-07-31
+  updated: 2026-08-24
 argument-hint: "[date-range or commit-range] [newsletter|both]"
 ---
 > **Note:** This skill references `.claude/rules/*.md` files from the original author's private repos — optional deep-dive context, not required. If those files aren't present in your repo, follow the inline instructions in this skill directly.
@@ -140,6 +142,9 @@ field on the profile page"] -->
 **Newsletter writing rules:**
 - **Lead with benefit, not mechanism.** "You can now add your Calendly link to your profile" not "Added booking_url column to participants table"
 - **Use "Now you can..." or "We shipped..." framing.** These are action-oriented and put the user in the driver's seat.
+- **DEMO-LED, not try-it-yourself.** Every feature entry should make the reader want to *see it on their own hire* — "shortlist your best fit in days" — never "go log in and click it yourself." The point of a feature, and its reason to book a call, is the outcome it wins, not how to operate it. Do not write self-service how-tos or invite self-onboarding; the action is booking a demo.
+- **The CTA is always a booking link, never the app URL.** Frame each feature's value so the natural next step is "show me this live." We sell by demo; we do not expect a recipient to self-serve the product.
+- **$1B-startup voice.** Confident, precise, outcome-focused. Top-tier operator — the team ships fast, understands the hire deeply, and communicates like humans. Specific numbers over vibes ("cut screening time ~80%") when real.
 - **One emoji per feature.** Pick from: ✨ (new), ⚡ (improvement), 🔧 (fix), 🎯 (precision/targeting), 📧 (email/comms), 🤝 (connection/matching), 📅 (scheduling). No emoji salad.
 - **Screenshot placeholders are mandatory** for any visual change. Use HTML comments so they're invisible in rendered markdown but obvious in the source.
 - **Skip INTERNAL changes entirely.** The community doesn't care about refactors, dependency bumps, or infra changes.
@@ -207,35 +212,37 @@ Use this template:
 
 *[Date in human format, e.g., "March 15, 2026"]*
 
-**TL;DR** — Here's what shipped this week:
-- [Bullet 1 — most impactful feature, 1 line]
+**TL;DR** — Here's what VettedAI does now:
+- [Bullet 1 — the headline capability, 1 line, framed as "see what's possible"]
 - [Bullet 2]
 - [Bullet 3]
 - [Up to 5 bullets max]
 
 ---
 
-[Feature spotlight entries from Step 3b, ordered by impact — biggest first]
+[Feature spotlight entries from Step 3b, ordered by demo-punch — biggest wow first]
 
 ---
 
-## Try It Out
+## Book a Demo
 
-[1-2 sentences pointing to the app or specific feature. Include a direct link
-if possible.]
+[1-2 sentences that sell the outcome — "see how this runs on a real role of
+yours", not "go open the app and click around". Pitch a live 20-min look, not
+a login. The goal is a booked call, never a tutorial.]
 
-**[CTA button text] →** `[URL]`
+**[Book a demo →]** `[BOOKING_URL]`
 
 ---
 
-*Shipped with ☕ by the [team name]*
-*Questions? Reply to this email or drop us a note at [contact]*
+*Built by the [team name] at [company]*
+*Want to see it on your own hiring? Book a call — ask us anything.*
 ```
 
 **Title guidelines:**
 - Confident, not clickbait. "Smarter Matching, Easier Scheduling" not "YOU WON'T BELIEVE what we shipped"
 - No version numbers. Community doesn't care about v1.3.2.
-- Action-oriented or benefit-oriented. "Book Coffee Chats in One Click" not "Release 47"
+- Action-oriented or benefit-oriented. "Shortlist Your Best Fit in Days, Not Weeks" not "Release 47"
+- The title sells the *capability*, not the release — the reader should want to see it live.
 
 **TL;DR guidelines:**
 - 3-5 bullets, each one line
@@ -394,27 +401,32 @@ spacing, and improved accessibility.
 
 ## Newsletter Voice Guide
 
-The newsletter voice is **confident builder** — a team that ships fast, cares about its community, and communicates like humans.
+The newsletter voice is **confident builder — a $1B, YC-backed startup** — a top-tier
+team that ships fast, knows hiring deeply, and pitches the outcome, not the operation.
+It communicates like humans and sells the live demo, never the self-serve tour.
 
 | Do | Don't |
 |----|-------|
-| "We shipped smarter matching this week" | "We are pleased to announce..." |
-| "Now you can add your Calendly link" | "A new field has been added to the database" |
-| "Fixed an issue where follow-up emails arrived late" | "Resolved a race condition in the automation scheduler cron job" |
-| "Your coffee chats just got easier to schedule" | "We have implemented booking URL integration" |
-| Name the benefit in the first sentence | Lead with technical details |
-| Use "we" and "you" | Use passive voice or third person |
+| "When your best candidates hit your shortlist, you'll see it here" | "We are pleased to announce..." |
+| "See how this runs on a real role of yours" | "A new field has been added to the database" |
+| "Get to a ranked shortlist in days, not weeks" | "Resolved a race condition in the automation scheduler cron job" |
+| "Your screening time just got cut ~80%" | "We have implemented booking URL integration" |
+| Name the outcome in the first sentence | Lead with technical details |
+| Point every action at a booked call | Tell the reader to log in and click around |
+| Use "we" and "you", fall in love with the outcome | Use passive voice or third person |
+| Quote real, specific numbers when you have them | Vague platitudes with no evidence |
 
 **Tone calibration:**
-- More Linear changelog, less enterprise release notes
-- More "shipped it" energy, less "please find attached"
-- Warm but not cutesy. Professional but not corporate.
-- Celebrate shipping without being breathless about it
+- More confident, outcome-led pitch, less enterprise release notes
+- More "this is the future of how you hire" energy, less "please find attached"
+- Warm but not cutesy. Confident but not arrogant. Professional but not corporate.
+- Every feature entry ends in a reason to *see it live* — never "go try it now."
 
 **Brand alignment:**
-- The product connects people. Language should reflect human connection.
+- The product sells an outcome (a verifiable shortlist, a faster hire), not a feature list. Language reflects the outcome.
 - Use product-specific metaphors sparingly — once in sign-off is fine, not in every heading.
-- Reference the community ("your match", "your profile") not the system ("the matching algorithm", "the pairing engine").
+- Reference the reader's hire ("your shortlist", "your candidates") not the system ("the scoring algorithm", "the pairing engine").
+- The CTA is the booking link. Restate it once at the end, plainly: "Book a 20-min demo to see it on your role."
 
 ## Tips
 
