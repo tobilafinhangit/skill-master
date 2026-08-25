@@ -63,7 +63,7 @@ These repos have `submodules/skill-master` as a git submodule:
 
 When a new repo is added to the ecosystem, add it to this table **with its pointer-bump policy** — do not assume `main` is a safe direct-push target (for prod-via-PR repos like Congrats and backend-restructing, it is not).
 
-> ⚠️ **PR-gated repos: `PR_GATED_REPOS=(vetted-congrats-Flow-GENEROUS)`.** For any repo in this set, NEVER commit/push a pointer bump directly — not even on `main`. Update the working tree only and report that the bump needs a PR via the repo's release flow. (2026: a blanket loop treating every repo's `main` as integration pushed a pointer bump straight to Congrats prod, bypassing its PR rule. This carve-out exists to prevent that recurrence.)
+> ⚠️ **PR-gated repos: never direct-push a pointer bump to them** — for a repo whose `main` is production-via-PR (Congrats, and effectively backend-restructing), the pointer is updated in the working tree only and the bump ships via that repo's release flow. The per-repo `REPO_INTEGRATION_BRANCH` map (see the loop) encodes this — a value of `"none"` means "never commit/push the pointer here". (Incidents: 2026 — a blanket loop treating every repo's `main` as integration pushed a pointer bump straight to Congrats prod; 2026-08-25 the same checked-out-branch heuristic hit backend-restructing's prod `main`. Both are why the loop matches the configured integration branch, not the checked-out one.)
 
 ### How consumers pick up updates (the submodule is PINNED)
 
@@ -160,13 +160,26 @@ REPOS=(
   "/Users/USER/code/repos/nts-opportunity-hour-digest"
 )
 
-INTEGRATION_BRANCHES="main lovable-staging verify-deployments backend-verify-deployment qa-mirror"
-# Repos whose `main` is production-via-PR — NEVER direct-push a pointer bump here,
-# even though the branch name is an "integration" name. (See Consuming Repos table.)
-PR_GATED_REPOS="vetted-congrats-Flow-GENEROUS"
+# Per-repo INTEGRATION BRANCH (the branch a pointer bump is safe to commit+push on).
+# This is the source of truth (mirror of the Consuming Repos table above) — NOT the
+# currently-checked-out branch, which can be `main`, a feature branch, or a stale prod
+# branch. Matching the checked-out branch against a generic allowlist is the bug that
+# pushed a pointer bump onto backend-restructing's prod `main` (2026-08-25): the repo
+# was sitting on a stale local `main`, which happened to be in the allowlist.
+#   value = the repo's integration branch to bump on
+#   "none" = PR-gated/prod-via-PR — update the working tree only, NEVER commit/push
+#            (Congrats: bump via feature→verify-deployments→release→main)
+declare -A REPO_INTEGRATION_BRANCH=(
+  ["vetted-congrats-Flow-GENEROUS"]="none"
+  ["backend-restructing"]="backend-verify-deployment"
+  ["vettedai-audition-supabase-version"]="lovable-staging"
+  ["vfacoffeechat"]="main"
+  ["nts-opportunity-hour-digest"]="main"
+)
 
 for repo in "${REPOS[@]}"; do
-  echo "=== $(basename $repo) ==="
+  name=$(basename "$repo")
+  echo "=== $name ==="
   cd "$repo"
 
   # Reset submodule if it has local changes (they've been synced already)
@@ -175,24 +188,25 @@ for repo in "${REPOS[@]}"; do
   # Update submodule working tree to latest skill-master main
   git submodule update --remote submodules/skill-master
 
-  # Persist the pointer ONLY on an integration branch — never pollute a feature PR,
-  # and never direct-push to a PR-gated (prod-via-PR) repo.
+  # Persist the pointer ONLY on the repo's configured integration branch. Never on the
+  # checked-out branch blindly (feature-branch pollution), never on a PR-gated repo.
+  integration="${REPO_INTEGRATION_BRANCH[$name]:-none}"
   branch=$(git rev-parse --abbrev-ref HEAD)
   if git diff --quiet submodules/skill-master; then
     echo "  pointer already current — nothing to commit"
-  elif echo " $PR_GATED_REPOS " | grep -q " $(basename $repo) "; then
+  elif [ "$integration" = "none" ]; then
     echo "  ⚠️ PR-GATED repo — working tree updated, pointer NOT committed."
     echo "     Open a PR via this repo's release flow (feature→verify-deployments→release→main)."
-  elif echo " $INTEGRATION_BRANCHES " | grep -q " $branch "; then
+  elif [ "$branch" = "$integration" ]; then
     git add submodules/skill-master
     git -c user.email="{WORKTREE_GIT_EMAIL}" -c user.name="{WORKTREE_GIT_NAME}" \
       commit -q -m "chore(skills): bump skill-master submodule"
     git push    # confirm with the user before pushing shared branches
     echo "  pointer committed + pushed on integration branch '$branch'"
   else
-    echo "  ⚠️ working tree updated but pointer NOT committed (on feature branch '$branch')."
-    echo "     Bump it on this repo's integration branch — for PR-gated repos (e.g. Congrats),"
-    echo "     via the normal feature→integration flow. See sister-repo-branch-conventions."
+    echo "  ⚠️ working tree updated but pointer NOT committed (on '$branch', integration is '$integration')."
+    echo "     Bump it on the repo's integration branch ('$integration'); for PR-gated repos"
+    echo "     (e.g. Congrats) via the normal feature→integration flow. See sister-repo-branch-conventions."
   fi
 done
 ```
