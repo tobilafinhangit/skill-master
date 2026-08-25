@@ -136,6 +136,8 @@ Pause briefly. If the user says "wrong" or "stop", abort.
 
 Spin up **one subagent** with codebase access (Grep, Glob, Read). The subagent runs two sequential phases that share context.
 
+> **Empty-return guard (2026-08-25, #3447):** The subagent MUST return its verdict. Verify it produced a **non-empty, structured** result before you act on it. If it returns empty/truncated/`{}` — do **NOT** fill the gap by grading the work yourself. The whole point of this skill is a reviewer who is not the author; a self-verdict is a rubber-stamp by the author and silently defeats every guardrail above. Instead: retry the subagent once; if it returns empty again, **stop** and surface it explicitly — *"`{review}` subagent returned empty twice; I did not self-review. Worth trying it as `{general}` or manually before merging."* (Root cause seen in the wild: a subagent agent-type pinned to a paid model that returns nothing on invocation. Verify the agent type/model returns at all.) A review that didn't happen is reported, never faked.
+
 #### Phase A: Ticket Compliance
 
 **Skip this phase if no Fizzy card was resolved.**
