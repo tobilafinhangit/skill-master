@@ -153,6 +153,12 @@ Additionally check:
 - **Verification steps:** If the ticket includes a "Definition of Done" or verification steps (grooming-architect format), check if the PR satisfies them.
 - **Technical guardrails:** If the ticket specifies constraints ("do NOT modify X", "must use Y pattern"), verify compliance.
 
+**Runtime integration check (mandatory):** For every new exported helper, adapter, hook, state
+contract, or renderer guard, search for production consumers and confirm the affected user path
+actually invokes it. Require an integration/component/E2E test for that consumer path. A helper
+with unit tests but no live consumer is **Partial/Miss** against a behavioral requirement, not
+Approved. Report an explicit traceability row: `requirement → runtime path → test`.
+
 Output: A structured compliance checklist.
 
 #### Phase B: Regression & Anti-Pattern Check

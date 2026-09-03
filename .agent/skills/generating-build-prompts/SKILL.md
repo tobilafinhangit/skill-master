@@ -72,6 +72,7 @@ Rules of engagement:
     git -C .claude/worktrees/<short-slug> config user.email "{WORKTREE_GIT_EMAIL}"
     git -C .claude/worktrees/<short-slug> config user.name  "{WORKTREE_GIT_NAME}"
 - Follow red/green (test-driven-development skill): <the specific failing assertion(s) to prove first, drawn from the ticket's Verification section>.
+- Do not stop at helpers, types, adapters, or unit tests. For every acceptance criterion, prove the live production consumer/path uses the change and add the corresponding integration/component/E2E assertion; an unused abstraction does not satisfy the ticket.
 - Hard constraint: <the ticket's explicit "do NOT touch" / banned-pattern list — pull verbatim from the ticket, don't paraphrase>.
 - The real work: <2-4 sentences summarizing the actual implementation shape, pulling any "mirror existing pattern at <file:line>" anchors from the ticket verbatim>.
 - Migration caveat (if the ticket touches the DB): new migration via CREATE OR REPLACE (never edit an applied one), Dashboard SQL editor to deploy, ends with the schema_migrations registry insert.

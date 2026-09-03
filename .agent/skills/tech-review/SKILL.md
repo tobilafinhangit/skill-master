@@ -54,6 +54,13 @@ Spin up a subagent with codebase access (Grep, Glob, Read) so it can verify clai
 
 The subagent returns a structured critique. Surface its key findings to the user.
 
+**Runtime-consumer gate (mandatory):** During critique, verify every new exported helper,
+adapter, hook, state contract, or renderer guard has both a production consumer on the affected
+user path and an integration/component/E2E test proving that usage. An abstraction with only unit
+tests is a review finding unless the ticket explicitly says the work is scaffolding-only. Require
+the revised plan to include `criterion → production path → test` traceability for every behavioral
+acceptance criterion.
+
 ### Step 2: Revised Plan (depends on Step 1)
 
 With the original plan + the critique, produce an improved version:

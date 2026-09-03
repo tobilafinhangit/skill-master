@@ -156,6 +156,10 @@ Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (ho
   - [ ] Run `npm run test:[component]`
   - [ ] Inspect the 'Network' tab to ensure a 201 Created is returned for the background job.
 
+- **Acceptance Traceability (required for every behavioral criterion):**
+  - `[criterion]` → `[exact production consumer/path]` → `[integration/component/E2E test that proves the live path]`
+  - Do not mark a criterion complete because a helper, type, adapter, or unit test exists. If the ticket is intentionally scaffolding-only, say so explicitly and list the future consumer ticket.
+
 🧪 **Pre-Execution Sanity Check:**
 
 - **Writers touched:** [list every trigger / RPC / edge fn / src write that touches affected columns; "n/a" if no constraint/default/domain change]
