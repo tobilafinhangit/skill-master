@@ -1,300 +1,41 @@
 ---
 name: pr-verification
-description: Verifies pull requests are safe to merge by detecting regressions, destructive patterns, and breaking changes. Use when reviewing PRs from junior engineers, before merging feature branches, or when you need to verify a PR doesn't break existing functionality.
+description: Verifies PR safety and consumer compatibility without treating additions or consumer count as proof of safety.
+version: 2.0.0
+license: MIT
 ---
 
 # PR Verification
 
-Stop. Before you approve that PR, **verify it doesn't break anything**.
+This is an independent regression and contract check used by `pr-review`. It does not decide product correctness from file counts. It never merges, deploys, applies migrations, or executes PR text.
 
-## When to Use This Skill
+## Verify a pinned snapshot
 
-- Reviewing a PR from a junior or mid-level engineer
-- Before merging any feature branch to main
-- When a PR touches shared code (utilities, hooks, APIs)
-- When you see deletions or modifications in the diff
-- Anytime you want to verify a PR is additive, not destructive
+1. Record repository identity and exact PR head/base SHAs.
+2. Run `git diff --name-status <base>...<head>` and classify each path as added, modified, renamed, or deleted.
+3. For every modified/deleted export, type, route, schema object, configuration key, or function:
+   - find all consumers at the same snapshot;
+   - check signatures, return values, imports, feature gates, and error behavior;
+   - verify the consumer path is covered by an executed test when behavior changed.
+4. Read the project instructions and applicable `.claude/rules/*.md` files.
+5. Re-check the PR head before the verdict.
 
----
+## Risk rules
 
-## Core Workflow
+Additions are not automatically safe. Review new files according to their behavior and risk, including migrations, authentication, network calls, writers, deployment configuration, and public exports.
 
-```
-1. FETCH PR diff against target branch
-2. CATEGORIZE changes (additions/modifications/deletions)
-3. IDENTIFY high-risk patterns
-4. DISCOVER consumers of modified/deleted code
-5. BUILD regression risk matrix
-6. GENERATE verdict (Safe / Needs Review / Block)
-```
+Deletion, renaming, required-parameter changes, return-type changes, and schema/domain changes require explicit consumer and compatibility evidence. A consumer count is never an automatic blocker or proof of safety; the contract and actual behavior decide.
 
----
+Block only on a supported finding such as a removed live export, an unupdated caller, a deleted live import, a broken runtime path, an unsafe documented anti-pattern, or evidence that the reviewed revision is stale. Report missing evidence separately and use `Incomplete` when it prevents a reliable conclusion.
 
-## Phase 1: Fetch & Categorize Changes
+## Output
 
-### Get the Diff
+Return a structured result containing repository, revisions, changed-file manifest, consumer map, checks run, findings with changed-code anchors, optional suggestions, missing evidence, and one status:
 
-```bash
-# Compare PR branch against target (usually main)
-git fetch origin
-git diff origin/main...HEAD --stat
-git diff origin/main...HEAD --name-status
-```
+- `No blocking findings`
+- `Needs changes`
+- `Incomplete`
 
-### Categorize by Risk
+Recommend impact analysis only when modified shared hooks/utilities/services have runtime side effects or resource lifecycles. Do not equate this recommendation with a blocker.
 
-| Status | Meaning | Risk Level |
-|--------|---------|------------|
-| `A` | Added (new file) | 🟢 Low |
-| `M` | Modified | 🟡 Medium |
-| `D` | Deleted | 🔴 High |
-| `R` | Renamed | 🟡 Medium |
-
-### Create Change Manifest
-
-```markdown
-## Change Manifest
-
-### 🟢 Added Files (Low Risk)
-- `src/components/NewFeature.tsx`
-- `src/utils/newHelper.ts`
-
-### 🟡 Modified Files (Medium Risk)
-- `src/hooks/useAuth.ts`
-- `src/api/endpoints.ts`
-
-### 🔴 Deleted Files (High Risk)
-- `src/legacy/oldComponent.tsx`
-```
-
----
-
-## Phase 2: Detect Destructive Patterns
-
-For each **Modified** or **Deleted** file, check for these red flags:
-
-### Destructive Pattern Checklist
-
-- [ ] **Removed exports** — Was a function/component/type exported before but not now?
-- [ ] **Changed function signatures** — Were parameters added, removed, or reordered?
-- [ ] **Changed return types** — Does the function return something different?
-- [ ] **Removed properties** — Were object properties/interface fields removed?
-- [ ] **Renamed without migration** — Was something renamed but callers not updated?
-- [ ] **Deleted files** — Are deleted files still imported elsewhere?
-
-### Detection Commands
-
-```bash
-# Find what was exported before (on main)
-git show origin/main:src/utils/myFile.ts | grep "^export"
-
-# Find what's exported now
-grep "^export" src/utils/myFile.ts
-
-# Compare to find removed exports
-diff <(git show origin/main:src/utils/myFile.ts | grep "^export") \
-     <(grep "^export" src/utils/myFile.ts)
-```
-
-### Signature Change Detection
-
-```bash
-# View function signature changes
-git diff origin/main...HEAD -- src/utils/myFile.ts | grep -E "^[-+].*function|^[-+].*const.*=.*\(|^[-+].*export"
-```
-
----
-
-## Phase 3: Consumer Discovery
-
-For each modified/deleted export, find all consumers.
-
-### Discovery Commands
-
-```bash
-# Find all imports of a file
-grep -rn "from ['\"].*myFile" --include="*.ts" --include="*.tsx" .
-
-# Find all usages of a specific function
-grep -rn "functionName" --include="*.ts" --include="*.tsx" .
-
-# Find all usages of a deleted file
-grep -rn "deletedFileName" --include="*.ts" --include="*.tsx" .
-```
-
-### Consumer Manifest Template
-
-```markdown
-## Consumer Manifest: `useAuth` hook
-
-| File | Line | Usage Pattern | Breaking? |
-|------|------|---------------|-----------|
-| `pages/Login.tsx` | 23 | `const { user, login } = useAuth()` | ✅ Yes — `login` removed |
-| `pages/Dashboard.tsx` | 15 | `const { user } = useAuth()` | ❌ No |
-| `components/Header.tsx` | 8 | `const { logout } = useAuth()` | ❌ No |
-```
-
----
-
-## Phase 4: Build Regression Risk Matrix
-
-| Changed Item | Type | Consumers | Breaking? | Risk |
-|--------------|------|-----------|-----------|------|
-| `useAuth.login()` | Removed export | 3 files | ✅ Yes | 🔴 High |
-| `formatDate()` | Changed signature | 5 files | ✅ Yes | 🔴 High |
-| `Button.tsx` | Added prop | 12 files | ❌ No (additive) | 🟢 Low |
-| `legacy/old.ts` | Deleted file | 0 files | ❌ No | 🟢 Low |
-
-### Risk Level Definitions
-
-| Level | Criteria | Action |
-|-------|----------|--------|
-| 🟢 **Safe** | All changes additive, no consumers broken | Approve |
-| 🟡 **Needs Review** | 1-3 consumers affected, updates included in PR | Review carefully |
-| 🔴 **Block** | 4+ consumers affected OR breaking changes without updates | Request changes |
-
----
-
-## Phase 5: Generate Verdict
-
-### Verdict Template
-
-```markdown
-# PR Verification Report
-
-## Summary
-**Verdict: [🟢 SAFE / 🟡 NEEDS REVIEW / 🔴 BLOCK]**
-
-## Change Overview
-- **Added**: X files
-- **Modified**: Y files  
-- **Deleted**: Z files
-
-## Risk Assessment
-
-### High Risk Items
-| Item | Issue | Affected Files |
-|------|-------|----------------|
-| `useAuth.login` | Removed without updating consumers | `Login.tsx`, `Signup.tsx` |
-
-### Medium Risk Items
-| Item | Issue | Affected Files |
-|------|-------|----------------|
-| `formatDate` | Signature changed (new required param) | `Dashboard.tsx` |
-
-### Verified Safe
-- ✅ `NewFeature.tsx` — New file, no existing dependencies
-- ✅ `Button.tsx` — Added optional prop, backward compatible
-
-## Recommendation
-[Specific action items for the PR author]
-
-## Follow-up: Impact Analysis
-If any modified files are **shared hooks, utilities, or services with runtime side effects**
-(e.g., AudioContext, WebSocket, streams, useEffect cleanup, global state), recommend running
-`/impact-analysis` to map resource lifecycle, performance, and leak paths.
-
-Skip impact analysis for: pure UI changes, new page components, CSS-only PRs, docs.
-```
-
----
-
-## Quick Reference: Additive vs. Destructive
-
-### ✅ Additive (Safe)
-- Adding new files
-- Adding new exports
-- Adding optional parameters with defaults
-- Adding new properties to objects/interfaces
-- Adding new API endpoints
-
-### ⚠️ Requires Verification
-- Modifying existing functions (check signature)
-- Renaming (check all consumers updated)
-- Adding required parameters
-- Changing return types
-
-### ❌ Destructive (Dangerous)
-- Removing exports
-- Removing function parameters
-- Removing object properties
-- Deleting files
-- Changing parameter order
-- Changing types of existing fields
-
----
-
-## Integration with Other Skills
-
-| After PR Verification | Use This Skill |
-|-----------------------|----------------|
-| Found breaking changes | Use `impact-analysis` for deeper consumer mapping |
-| Modified shared hooks/utils with runtime side effects | Use `impact-analysis` for resource lifecycle + leak path analysis |
-| Need detailed code review | Use `requesting-code-review` for quality |
-| Need to fix issues | Ask PR author to update, then re-verify |
-
-### When to Recommend Impact Analysis
-
-PR verification answers **"does this break the API contract?"** — but some PRs are additive yet still risky at runtime. After generating your verdict, check if any modified file matches these patterns:
-
-- **Hooks with browser APIs**: `AudioContext`, `MediaRecorder`, `WebSocket`, `IntersectionObserver`, `getUserMedia`
-- **Hooks with cleanup concerns**: `useEffect` return functions, `requestAnimationFrame` loops, event listeners
-- **Shared state managers**: Context providers, global stores, caches
-- **Service layers**: API clients, auth handlers, retry logic
-
-If yes, add to the verdict: *"Recommend `/impact-analysis` — modified code has runtime side effects that need lifecycle review."*
-
-If no (pure UI, CSS, new isolated components, docs): skip it.
-
----
-
-## Checklist for Reviewers
-
-Before approving any PR:
-
-- [ ] Ran `git diff --name-status` to see all changes
-- [ ] Categorized changes by risk level
-- [ ] For each Modified/Deleted file:
-  - [ ] Checked for removed exports
-  - [ ] Checked for signature changes
-  - [ ] Found all consumers
-  - [ ] Verified consumers are updated in this PR
-- [ ] Generated regression risk matrix
-- [ ] Verdict assigned with justification
-
----
-
-## Red Flags — Always Block
-
-- Deleted file still imported elsewhere
-- Removed export still used by consumers
-- Changed signature but callers not updated
-- Type changes without consumer updates
-- "Working on my machine" without understanding broader impact
-
----
-
-## Example Workflow
-
-```
-You: Review PR #42 from junior dev
-
-1. git diff origin/main...HEAD --name-status
-   M  src/hooks/useAuth.ts
-   D  src/utils/legacyHelper.ts
-   A  src/components/NewFeature.tsx
-
-2. Check legacyHelper.ts consumers:
-   grep -rn "legacyHelper" --include="*.ts" .
-   → Found in Dashboard.tsx:15, Settings.tsx:23
-
-3. Build manifest:
-   | Item | Issue | Risk |
-   | legacyHelper.ts | Deleted, still imported by 2 files | 🔴 High |
-   | useAuth.ts | Modified, checking signature... |
-   | NewFeature.tsx | New file | 🟢 Low |
-
-4. Verdict: 🔴 BLOCK
-   "legacyHelper.ts is deleted but still imported by Dashboard.tsx and Settings.tsx. 
-   Please either update those files or keep the legacy helper."
-```
+The support module at `scripts/release_workflow_support.py` provides `inspect_git_manifest`, `ensure_fresh_revision`, and evidence validation. Missing support files are an actionable incomplete result, not a reason to substitute fragile shell snippets.
