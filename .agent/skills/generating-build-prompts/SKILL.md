@@ -79,7 +79,7 @@ Rules of engagement:
 - Definition of Done = the ticket's Verification section. Also run: <the ticket's stated verification commands, e.g. npx tsc -p tsconfig.app.json --noEmit, scripts/audit-rbac-drift.ts>.
 - <ENDING — see Step 1 mode, exact wording below>
 
-Run this on Sonnet. /clear before <next ticket ID>.
+Model: use the cheapest model that fits the ticket — haiku for mechanical execution, step up only if the reasoning gets hard. Never name a specific model as the default. /clear before <next ticket ID>.
 ```
 
 ### Ending text by mode

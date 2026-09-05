@@ -209,14 +209,14 @@ Rules of engagement:
 - Definition of Done = the ticket's Verification section. Also run: npx tsc -p tsconfig.app.json --noEmit.
 - When green: open a PR to <base-branch>, then run /pr-review against card #<N>. Stop and report — I handle QA/merge. Do NOT start the next ticket.
 
-Run this on Sonnet. /clear before the next ticket.
+Model: use the cheapest model that fits the ticket — haiku for mechanical execution, step up only if the reasoning gets hard. Never name a specific model as the default. /clear before the next ticket.
 ```
 
 **Fill-in guidance:**
 - **`<N>/<slug>`** — reuse the repo branch convention (`<fizzy#>/<short-slug>`). If no Fizzy card yet, use `<verb>/<slug>`.
 - **Test seams** — lift the sharpest behavioral checks from the ticket's Verification section; name real functions/inputs, not "add tests."
 - **The real work** — the highest-value line. It's the one-sentence insight a `tech-review` or the writer's own sanity-check produced (the wrong data source, the double-mount, the two sources of truth). Without it the agent rediscovers it slowly.
-- **Model** — default "Run this on Sonnet" for execution work; only bump to Opus for a genuinely hard-reasoning ticket, and say why.
+- **Model** — cheapest model that fits the ticket (haiku for mechanical execution); step up only for genuinely hard reasoning, and say why. Never name a specific model as the default.
 - Keep each block lean — if it's longer than ~20 lines the ticket itself is under-specified; fix the ticket, not the prompt.
 
 **Do NOT** put pricing, KES, or tier payout in the build prompts. Tier lives in the ticket header only.
