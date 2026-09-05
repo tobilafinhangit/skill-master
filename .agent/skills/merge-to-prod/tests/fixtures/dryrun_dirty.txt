@@ -1,0 +1,4 @@
+git fetch origin --quiet
+gh pr view 501 --json mergeCommit,state -q .state
+gh pr edit 12 --title "chore: merge to prod"
+curl -s -X POST https://app.fizzy.do/9/cards/101/closure.json -H "Authorization: Bearer TOKEN"

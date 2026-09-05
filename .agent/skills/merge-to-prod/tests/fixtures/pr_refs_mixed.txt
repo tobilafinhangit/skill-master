@@ -1,0 +1,2 @@
+Fixes #45. Supersedes https://github.com/other/congrats/pull/45 and acme/other#46.
+Also see (#541). Card body cites the local PR explicitly.

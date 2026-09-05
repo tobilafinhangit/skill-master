@@ -1,0 +1,3 @@
+Revert "fix: retry backoff (#90)"
+
+This reverts commit cccccccccccccccccccccccccccccccccccccccc.

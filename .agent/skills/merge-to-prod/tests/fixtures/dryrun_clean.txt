@@ -1,0 +1,3 @@
+git fetch origin --quiet
+gh pr view 501 --json mergeCommit,state -q .state
+curl -s https://app.fizzy.do/9/boards/B/columns/C/cards.json?page=1 -H "Authorization: Bearer TOKEN"

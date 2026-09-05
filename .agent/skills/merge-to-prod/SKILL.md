@@ -1,7 +1,7 @@
 ---
 name: merge-to-prod
 description: Opens or updates a staging→main PR covering all Fizzy cards in the "Merge to Prod" column, audits git vs the column (flags shipped cards for closure and premature cards for move-back), and drafts a terse batched PR title/body. Auto-detects integration/target branches and Fizzy board per repo. Use when a batch of tickets has cleared QA + manual UX testing and is ready to ship to production.
-version: 1.2.0
+version: 2.0.0
 license: MIT
 ---
 
@@ -13,6 +13,8 @@ Ship a batch of ready-to-prod tickets in one PR. Audit the **Merge to Prod** col
 
 **Announce at start:** "I'm using the merge-to-prod skill."
 
+**What this skill does NOT do:** it never merges the promotion PR, never deploys, never applies a database migration, never closes a card as shipped without the ancestry and deliverable proof below. Preparation opens or updates a PR. Merging, deploying, and `--finalize` closure are separate, explicitly gated steps.
+
 ## When to Use
 
 - Periodically (weekly or on-demand) when tickets have accumulated in the Merge to Prod column
@@ -23,54 +25,42 @@ Ship a batch of ready-to-prod tickets in one PR. Audit the **Merge to Prod** col
 
 ```
 /merge-to-prod              # audit + open/update staging→main PR; asks before Fizzy cleanup
-/merge-to-prod --dry-run    # audit only; no PR update, no Fizzy moves
-/merge-to-prod --finalize <PR>  # after the PR has merged: close all cards covered by the PR body
+/merge-to-prod --dry-run    # audit only; no PR update, no Fizzy moves, no external writes at all
+/merge-to-prod --finalize <PR>  # after the PR has merged: re-validate, then close covered cards
 ```
+
+`--dry-run` is globally read-only for external systems: no `gh pr create`/`gh pr edit`, no Fizzy `POST` (closure, triage, comments), no migration applies, no deploys. It may run read-only `git fetch`, `gh pr view`, and Fizzy `GET`.
 
 ---
 
-## Phase 1: Auto-Detect Per Repo (No Config Required)
+## Phase 0: Resolve context and record it (do this first, every run)
 
-The skill adapts per repo without requiring a config file.
+**0.1 Read repo instructions before resolving release policy.** If the current checkout has `CLAUDE.md` / `AGENTS.md` / `.claude/rules/working-branch.md` (or the integration-branch equivalent), read them first. Repo instructions override this skill's defaults (branch names, board mapping, deploy rules).
 
-| Item | How it's detected |
-|------|-------------------|
-| **Integration (staging) branch** | 1) Read `.claude/rules/working-branch.md` or `.claude/rules/integration-branch.md`; 2) else first of `lovable-staging` / `verify-deployments` / `backend-verify-deployment` existing on `origin` |
-| **Target (main) branch** | `git symbolic-ref refs/remotes/origin/HEAD` → else `main` → else `master` |
-| **Fizzy board ID** | Match repo root name against Repo Reference below → else ask |
-| **Merge to Prod column ID** | Lookup `board.id → column ID` from Board Reference → if missing, list columns and match by name "Merge to Prod" (case-insensitive) |
-| **QA to be Confirmed column ID** | Same Board Reference → used only for moving premature cards back |
-
-Source the token:
-```bash
-source .env.local 2>/dev/null || source congrats/.env.local 2>/dev/null
-# → $FIZZY_API_TOKEN
-```
-
-### Phase 1.5: Main→Integration Drift Guard (RUN BEFORE building any PR)
-
-A staging→main PR silently comes up **CONFLICTING** when `main` holds commits the integration branch lacks — hotfixes cherry-picked straight to `main`, features merged via `mtp/*-main` branches, or a prior promotion's own merge commit. Discovering that at *merge time* (as happened 2026-07-25, 65 commits / 19 real features of drift → a hand-resolved 19-file reconcile) is the failure this guard prevents. Run it **first**, before Phase 2.
-
-**Use `git cherry` (patch-id), NEVER `git merge-base --is-ancestor`.** `is-ancestor` reports divergence for a *benign* reason too — immediately after any promotion merges, `main` carries its own merge commit that the integration branch will never contain, so `is-ancestor` returns false on every normal cycle and would nag forever. `git cherry` compares by **patch-id**, so a commit already on the integration branch under a *different SHA* (the dual-SHA case) does **not** false-positive — only genuinely-absent work shows as `+`.
+**0.2 Resolve the repository by git remote identity, not directory name.** Directory basenames lie (renamed checkouts, worktrees, sister-repo copies).
 
 ```bash
-git fetch origin --quiet
-# '+' lines = commits on main whose patch is NOT on the integration branch (real drift).
-# '-' lines = already there under a different SHA (benign; ignore).
-DRIFT=$(git cherry "origin/$STAGING" "origin/$MAIN" 2>/dev/null | grep -c '^+')
-if [ "$DRIFT" -gt 0 ]; then
-  echo "⚠️  main has $DRIFT commit(s) NOT on $STAGING (real feature/hotfix drift):"
-  git cherry "origin/$STAGING" "origin/$MAIN" | grep '^+' | while read _ sha; do
-    git log -1 --format='   %h %s' "$sha"
-  done
-fi
+git fetch origin --quiet   # fail closed on error — see 0.6
+REMOTE_URL=$(git config --get remote.origin.url)
+REPO_TOP=$(git rev-parse --show-toplevel)
 ```
 
-**If `DRIFT` > 0 → STOP. Do not build the PR yet.** The staging→main merge will conflict. Offer to **reconcile first**: merge `origin/$MAIN` into `$STAGING` in an **isolated worktree** (never the primary tree — see `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`), authored as `{WORKTREE_GIT_EMAIL}` (your own repo-automation identity) (`.claude/rules/worktree-git-author-identity.md`), after **enumerating** exactly what it will pull (the `+` list above) and confirming with the user. Once reconciled and pushed, `git cherry` returns no `+` lines and the promotion PR merges clean. Only then continue to Phase 2. (This is the *forward* guard; `hotfix` Phase 5 is the *upstream* fix — it merges `main` back into staging right after each hotfix so drift never accumulates. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md` for the dual-SHA-vs-merge-base trap.)
+Match `REMOTE_URL` against the Repo Reference (compare owner + repo slug, ignoring `.git` suffix and `https://` vs `git@` shape). Only fall back to directory-basename matching when no remote is configured, and then say so. If remote identity and directory name disagree, the remote wins and you must surface the conflict.
 
-### Optional override: `.claude/skills/merge-to-prod.json`
+**0.3 Record the release context and print it.** Every later phase refers to these pinned values — never to a re-resolved "current" branch.
 
-Only needed if auto-detection picks the wrong value:
+```
+repo (remote identity): <owner>/<slug> (+ checkout dir, if different)
+integration branch: <name> @ <pinned head SHA>
+target branch: <name> @ <pinned base SHA>
+Fizzy account / board / Merge-to-Prod column / QA column: <ids>
+fetched at: <UTC timestamp>
+mode: prepare | --dry-run | --finalize <PR>
+```
+
+Pin with exact SHAs: `git rev-parse origin/$STAGING` and `git rev-parse origin/$MAIN` immediately after fetch. Quote both SHAs in the audit output and embed them in the release manifest (Phase 5).
+
+**0.4 Validate overrides before using defaults.** If `.claude/skills/merge-to-prod.json` exists, validate each field (branch exists on `origin`, board/column IDs exist via the Fizzy API) before use. An invalid override is a hard stop — do not silently fall back to auto-detection for that field.
 
 ```json
 {
@@ -82,18 +72,62 @@ Only needed if auto-detection picks the wrong value:
 }
 ```
 
+**0.5 Unresolved or conflicting identity blocks dependent actions.** If you cannot resolve exactly one repo, one integration branch, one target branch, and one board+column set, stop after printing what resolved and what did not. Do not audit against a guessed pairing.
+
+**0.6 Fail on fetch/ref/command errors.** A failed `git fetch`, an unresolvable ref, a `gh` error, or a Fizzy non-2xx is a stop-and-report, never "no drift" / "column empty" / "already shipped". Empty output after an error means *unknown*, not *clean*.
+
+**Gate G0 (explicit):** context recorded with pinned SHAs, overrides validated (or absent), mode stated. Without G0, no audit, no PR write, no Fizzy write.
+
+> Incident narratives and conditional examples that used to live inline are now in `references/` — `incidents.md` (why each gate exists), `classification-examples.md`, `migration-notes.md`, `scenario-walkthroughs.md`. Gates stay here, beside the step they guard.
+
 ---
 
-## Phase 2: Fetch the Merge to Prod Column
+## Phase 1: Main→Integration drift check (before any audit)
+
+A staging→main PR silently comes up **conflicting** when `main` holds commits the integration branch lacks. Run this **before** Phase 2.
+
+**`git cherry` is patch-equivalence evidence only** — not a conflict detector, not a complete content comparison. A clean `git cherry` (no `+` lines) does **not** prove the merge will be conflict-free: it misses merge-commit content, renames resolved differently on each side, and anything the patch-id comparison cannot see. Treat it as one signal, then run the independent mergeability check below.
 
 ```bash
-git fetch origin --quiet
+git fetch origin --quiet   # fail closed (0.6)
+# '+' lines = commits on main whose patch is NOT on the integration branch.
+# '-' lines = already there under a different SHA (benign dual-SHA; ignore).
+git cherry "origin/$STAGING" "origin/$MAIN" | grep '^+' | while read _ sha; do
+  git log -1 --format='   %h %s' "$sha"
+done
+```
 
-# Fetch ALL cards in the column. Fizzy paginates (first page 15, then escalating 30/50…) and
-# returns ONLY page 1 unless you follow the `Link: rel="next"` header / pass ?page=N. A column
-# with >15 cards is otherwise SILENTLY TRUNCATED to its first page — this masked a
-# 44-card Merge-to-Prod backlog as 15 and is why "I still see cards" recurred.
-# ALWAYS paginate to exhaustion; never trust a single unpaginated fetch.
+**Independent mergeability check (pinned revisions, isolated temp environment).** Do not test-merge in the working tree and do not depend on `/tmp` worktrees:
+
+```bash
+BASE=$(git rev-parse origin/$MAIN)      # pinned in G0
+HEAD=$(git rev-parse origin/$STAGING)   # pinned in G0
+WT=".claude/worktrees/mtp-merge-check-<yyyymmdd>"   # repo-local, removed afterwards
+git worktree add --detach "$WT" "$BASE"
+git -C "$WT" merge --no-commit --no-ff "$HEAD"
+MERGE_EXIT=$?
+git -C "$WT" merge --abort 2>/dev/null; true
+git worktree remove --force "$WT"
+```
+
+`MERGE_EXIT != 0` means the promotion PR will conflict regardless of what `git cherry` said. Report the conflicting paths; do not proceed to build the PR until reconciled.
+
+**Record the result in the manifest.** A passing G1 produces the run's `merge_check` record: pinned main SHA, pinned staging SHA, the temp worktree/check identifier, the merge command's exit code, and the explicit status `clean`. `scripts/manifest.py` rejects a manifest with a missing, malformed, stale, or non-clean G1 record — and without a validating manifest nothing publishes (G5) and finalize has nothing to consume.
+
+**If real drift exists → STOP. Do not build the PR yet.** Offer to **reconcile first**: merge `origin/$MAIN` into `$STAGING` in an **isolated worktree** (never the primary tree), with an enumerated list of exactly what the reconcile will pull, and explicit user confirmation. Only continue once both checks are clean. (The *forward* guard lives here; the `hotfix` skill's Phase 5 is the *upstream* fix that merges `main` back into staging right after each hotfix so drift never accumulates.)
+
+**Gate G1 (explicit):** `git cherry` output recorded AND temp-worktree merge check recorded, both against the G0-pinned SHAs, and the clean result stored as the manifest's `merge_check`. A drift finding blocks Phase 2; a missing or failed record fails `manifest.py` validation, which blocks publication and finalize.
+
+---
+
+## Phase 2: Fetch the Merge to Prod column (paginated, asserted)
+
+```bash
+git fetch origin --quiet   # fail closed (0.6)
+
+# Fetch ALL cards in the column. Fizzy paginates and returns ONLY page 1
+# unless you follow pagination. ALWAYS paginate to exhaustion; never trust
+# a single unpaginated fetch.
 TMP=$(mktemp); echo "[]" > "$TMP"
 page=1
 while :; do
@@ -119,199 +153,221 @@ echo "Fetched $(echo "$CARDS" | python3 -c 'import json,sys; print(len(json.load
 # will finalize a partial column and leave a silent backlog.
 ```
 
-If the column is empty: stop. There's nothing to ship.
+A malformed API response, an auth failure, or a count mismatch means the column state is **unknown** — stop, do not audit a partial list. If the column is verified empty: stop. There's nothing to ship.
+
+**Gate G2 (explicit):** fetched count equals `X-Total-Count`, or a named stop with the failure. No partial-column audits.
 
 ---
 
-## Phase 3: Audit — Classify Each Card
+## Phase 3: Inventory the whole release, then classify each card
 
-> **Context budget.** The per-card classification below reads the card's body + comments to extract PR refs, then runs git/PR containment checks. Keep that heavy text **out of the parent**: the parent holds only the audit table (`#N → bucket → evidence`). For columns over ~15 cards, **fan out one subagent per card** (or per wave of ~6) — each reads its own card body+comments + runs the containment checks and returns a compact `{card, bucket, evidence_refs}` (a PR number, a SHA — not the card text or git output). The shared `COMMITS`/`staging..main` list can be computed once in the parent and passed to each child.
+> **Context budget.** Per-card classification reads the card's body + comments to extract PR refs, then runs git/PR containment checks. Keep that heavy text **out of the parent**: the parent holds only the audit table (`#N → state → evidence`). For columns over ~15 cards, **fan out one subagent per card** (or per wave of ~6) — each reads its own card body+comments + runs the containment checks and returns a compact `{card, state, evidence_refs}` (a PR number, a SHA — not the card text or git output). The shared `BASE`/`HEAD`/change list is computed once in the parent and passed to each child.
 
-Compute commits on staging ahead of main:
+### 3.1 Inventory every change between the pinned revisions
+
 ```bash
-COMMITS=$(git log --format='%H|%s' origin/$MAIN..origin/$STAGING)
+BASE=<G0 base SHA>; HEAD=<G0 head SHA>   # pinned; never re-resolve here
+git diff --name-status "$BASE" "$HEAD"
 ```
 
-For each card `#N`, classify into one of four buckets.
+This inventory MUST include additions, modifications, deletions, and renames. It is the release you are auditing — the card list is not the release.
 
-> **The close test — proof is merge-base ancestry, nothing softer.** A card may ONLY be classified 🟢/✅ (shipped) when its fix commit is an **ancestor of the target repo's `main`**: `git merge-base --is-ancestor <mergeCommit> origin/main`. A "Merge to Prod" column position, a QA full-pass comment, a `[FIXED]` title, or a `.claude/rules/*.md` documenting the fix-class are **NOT proof** — they mean *queued / verified / pattern-learned*, not *in production*. **Verify against the repo that OWNS the fix** (Congrats `vetted-congrats-Flow0.1`, `backend-restructing`), not this board's home repo — detect it from the QA-signoff branch name and `cd` into that repo to run the ancestry check; "no visibility from here" is not a verdict. This is the discipline behind step 2 below — when a finalize/triage pass closes cards as shipped, run the ancestry check, not the column read. (Codified: `.claude/rules/close-requires-main-ancestry.md`.)
+### 3.2 Map cards to changes AND every change to readiness evidence
 
-**Detection strategy per card** (try in order, stop at first definitive hit):
+Build two maps and require both:
 
-1. **Exact number match in staging..main** — commit message contains `#N` (word-boundary), `N/-`, `feat/N-`, or `/N/`:
-   ```bash
-   git log --oneline origin/$MAIN..origin/$STAGING | grep -E "(#$N[^0-9]|/$N[-/]|$N-)"
-   ```
-2. **PR-link / QA-signoff containment** *(most reliable — branch- and squash-name-agnostic; run this before concluding anything is premature)* — the card body and comments almost always carry an explicit `PR #NNN` and a QA "FULL PASS / sign-off" comment. That PR's merge commit is the authoritative signal, not commit-message tokens:
-   ```bash
-   # Pull card body + comments, extract every PR number referenced
-   PRS=$( { echo "$CARD_DESC"; echo "$CARD_COMMENTS"; } \
-          | grep -oE '(PR )?#[0-9]{2,5}|pull/[0-9]{2,5}' | grep -oE '[0-9]{2,5}' | sort -u )
-   for PR in $PRS; do
-     SHA=$(gh pr view "$PR" --json mergeCommit,state -q \
-            'select(.state=="MERGED") | .mergeCommit.oid' 2>/dev/null)
-     [ -z "$SHA" ] && continue
-     if git merge-base --is-ancestor "$SHA" origin/$MAIN 2>/dev/null; then
-       echo "#$N → 🟢 already in main via PR #$PR ($SHA)"; break
-     elif git merge-base --is-ancestor "$SHA" origin/$STAGING 2>/dev/null; then
-       echo "#$N → ✅ covered: PR #$PR in staging, will ship in this batch"; break
-     fi
-   done
-   ```
-   Cards shipped in a *prior* `staging→main` batch land here as 🟢 — the single most common real state of a stale Merge-to-Prod column. A no-code card (manual test/QA task) with a QA full-pass and no PR is also resolved here → 🟢 (completed task, close it).
-3. **Already in main (number grep)** — repeat step 1 against `origin/$MAIN` recent history (last ~60 days):
-   ```bash
-   git log --all --since="60 days ago" --oneline | grep -E "(#$N[^0-9]|/$N[-/])"
-   # For each hit, check containment:
-   git branch -r --contains <sha> | grep -q "origin/$MAIN"
-   ```
-4. **Open PR into staging** — a PR targeting `$STAGING` exists whose branch or title references `N`:
-   ```bash
-   gh pr list --search "$N in:title" --base $STAGING --state open --json number,headRefName
-   ```
-5. **Keyword fallback** — extract 2-3 distinctive words from the card title (skip priority emojis, type words, "Phase 3", etc.) and grep commit messages across all branches, then check containment.
+1. **card → changes**: for each card, the commits/PRs that deliver it (verified per §3.4, not merely matched per §3.3).
+2. **change → evidence**: for every change in the §3.1 inventory, the card + readiness evidence that justifies shipping it — or an explicit `unreviewed` flag.
 
-Buckets:
+**Never automatically label unmatched work "Infra / chore."** Inspect each unmatched change. If it is genuinely standing infrastructure (CI config, dependency bump with no behavior change, typo fix with its own review), record the evidence that shows it. Otherwise mark it **unreviewed** — it blocks `ready` (see §3.5).
 
-| Bucket | Definition | Planned action |
-|---|---|---|
-| ✅ **Covered** | Step 1 or step 2 found a commit/PR-merge in `staging..main` | Include in PR body |
-| 🟢 **Already in main** | Step 2 or step 3 found the card's PR-merge / commit is an ancestor of `origin/$MAIN` (shipped in a prior batch, via a differently-named branch, or a no-code task with QA full-pass) | Flag for **closure** (state → done) |
-| ❌ **Premature** | Step 4 found an open PR into staging (not yet merged); OR no commits/PRs anywhere **and no QA full-pass on the card** | Flag for **move-back** to QA |
-| ❓ **Unknown** | No matches at all | Ask the user before any action |
+### 3.3 Candidate discovery (signals, not verdicts)
 
-> **Guardrail — never silently move back a QA-passed card.** If a card carries a QA "FULL PASS / sign-off" comment but steps 1–5 find nothing, do **not** classify it ❌ Premature and move it back to QA. A passed card with no detectable commit is almost always a *finalize gap* (its work shipped in an earlier batch under an unrelated branch/squash name), not missing work. Classify it ❓ Unknown and surface it explicitly for a human decision. Moving a genuinely-shipped, QA-signed card back to QA is the costlier error than leaving it in place one extra cycle.
->
-> **Bidirectional corollary — "no PR in the card" is NOT proof of unshipped.** The fix often lives in `main` under a keyword-matched commit the card never references. Before concluding a card is open (or reopening one), grep the target repo's `main` for the fix: `git -C <repo> log origin/main --oneline --since="120 days ago" | grep -iE "<2-3 distinctive title words>"`, then confirm with `git merge-base --is-ancestor <sha> origin/main`. Don't close on a soft positive (column/QA/label); don't reopen on a soft negative (no-PR) — both are resolved by locating the actual commit.
+Number, keyword, branch-name, and PR-text matches are **candidate discovery only**. They nominate candidates; they never classify. In particular:
 
-**Also collect infra commits** in `staging..main` that don't match any card — group them under "Infra / chore" in the PR body.
+- A commit-message `#N` match is subject to boundary rules: `#12` at end-of-line matches card 12; `312` does not contain card 12; `/12-/`, `/12/`, and `feat/12-` shapes are candidates only after word-boundary checks. Use `scripts/card_refs.py` for extraction — never bare `grep -E "(#$N[^0-9]…)"` as a verdict.
+- A card-title keyword hit is a candidate; the deliverable check (§3.4) is the verdict.
+- A branch name containing `N` is a candidate; containment of its merge commit is the verdict.
 
-Print the audit as a compact table and pause. Do not mutate anything yet.
+Detection order per card (stop at first **verified** hit, not first candidate hit):
+
+1. **Candidate number match** in `BASE..HEAD` commit messages (word-boundary).
+2. **PR-link / QA-signoff containment** *(most reliable — branch- and squash-name-agnostic)* — extract every PR reference from the card body + comments, qualify each by repository, then check each PR's merge commit for ancestry against the pinned SHAs.
+3. **Already-on-target search** — repeat against target-branch history (~60 days), then containment-check each hit.
+4. **Open PR into staging** whose branch or title references `N`.
+5. **Keyword fallback** — 2–3 distinctive title words grepped across branches, then containment-checked.
+
+### 3.4 Verification (what turns a candidate into a state)
+
+- **Retain repository-qualified PR identities.** A PR reference is `(repo, number)`. Never resolve a cross-repository URL (`github.com/<other>/pull/NNN`, a Congrats PR cited on a Vetted card) as a local PR number. A bare `#NNN` inherits the card's owning repo only after you have determined that owner from the QA-signoff branch — it is never assumed to be the current checkout's repo.
+- **Verify the association using explicit card references AND the actual deliverable.** The card (body or comments) must explicitly reference the PR/branch/commit, AND the PR's title/body must name the card (`fix(#N)` / `Fizzy #N` — title-verify before trusting any PR number), AND the PR's merge commit must be contained where the state claims. A title match alone is insufficient in both directions.
+- **Account for all required PRs/repositories and any later revert or superseding change.** A multi-PR ticket with one PR unmerged is not covered. A merged fix later reverted is not covered — the revert must be detected (`git log --oneline BASE..HEAD --grep='Revert.*#N'` plus PR state) and the card re-evidenced. A superseded PR (closed in favor of another) counts only via the PR that actually merged.
+- **Sister-repository evidence may be inspected, but cleanup stays scoped.** You may `cd` into a sister checkout (or query its history) to verify a sister-repo card's deliverable. You must NOT close, move, or comment on cards outside this invocation's resolved board ownership — report them, leave them.
+
+### 3.5 Mutually exclusive states and the release verdict
+
+Each card ends in exactly one state:
+
+| State | Meaning |
+|---|---|
+| `covered` | Verified deliverable merged into the integration head (`HEAD`), will ship in this batch. Not yet on target. |
+| `already_on_target` | Verified deliverable is an ancestor of the target base (`BASE`) — shipped in a prior batch, via a differently-named branch, or otherwise already live. Flag for closure. |
+| `not_ready` | Verified NOT shippable: an open PR into staging not yet merged, a missing deliverable, a revert without re-land — established by positive evidence, never by "no matches found". Flag for move-back to QA. |
+| `unknown` | Missing evidence. Includes QA-passed cards with no detectable commit (almost always a finalize gap, not missing work) — never move these back silently; surface for a human decision. |
+| `non_code_complete` | No code change required AND explicit completion evidence exists (linked QA full-pass, completed manual task, recorded decision). Must never be described as "in main" — there is no commit to be in main. |
+
+Rules:
+
+- **Missing evidence means `unknown`.** Absence of search matches does not prove `not_ready`.
+- **The close test is merge-base ancestry, nothing softer.** `covered`/`already_on_target` require `git merge-base --is-ancestor <mergeCommit> <pinned-SHA>` run against the repo that owns the fix. Column position, QA comments, `[FIXED]` titles, and rule files are not proof — they mean queued / verified / pattern-learned, not delivered.
+- **Release verdict** over the whole inventory: `ready` | `blocked` | `incomplete`.
+  - `ready`: every change in §3.1 maps to `covered`/`already_on_target`/`non_code_complete` with verified evidence, and every card maps to a state with evidence. Only then may a promotion PR be created/updated.
+  - `blocked`: any card is `not_ready`, any change is `unreviewed`, or any gate failed. Print the proposed PR content AND the blockers; do **not** create or update the promotion PR.
+  - `incomplete`: any card is `unknown` or any evidence is missing/partial. Same handling as `blocked`: print, do not publish.
+- **Excluded work on staging → recommend the selective-release workflow.** If staging carries work that must not ship yet, do not improvise cherry-picks here. Point at the `selective-staging-merge` skill and stop this run as `blocked` (excluded work present).
+- **Revalidate before publication.** Immediately before creating/updating the promotion PR, re-fetch `origin/$STAGING` and `origin/$MAIN`. If either moved since G0, re-pin, refresh every affected evidence item (drift check, inventory, containment), and re-print the audit. Never publish from stale pins.
+
+**Gate G3 (explicit):** the two maps (§3.2) printed with every change accounted for, every card in exactly one state, release verdict stated. `blocked`/`incomplete` never publishes. Revalidation recorded when pins moved.
+
+Worked examples live in `references/classification-examples.md`. Scenario walkthroughs for judgment-only cases live in `references/scenario-walkthroughs.md` — they illustrate expected outcomes; they do not substitute for running the checks.
 
 ---
 
-## Phase 3.5: Prod Migration Check (only if `supabase/migrations/` exists in the repo)
+## Phase 4: Migration and runtime assessment (only if `supabase/migrations/` exists)
 
-**This closes a real gap: `merge-to-prod` ships *code* to `main` (Vercel) but never applies a DB *migration* to the prod database.** A migration in the batch therefore reaches prod-code with **no prod-DB change applied** — the "code diverges from the DB" trap. Worse, applying a *non-additive* migration to prod before its matching code is on prod breaks the live writer (the #919 26-hour scoring-outage class). This phase surfaces every migration in the batch, classifies it against live prod, and routes it — before the PR is built.
+This skill ships *code* to `main` but never applies a DB *migration* to prod. A migration in the batch therefore reaches prod-code with **no prod-DB change applied** — surfacing it here is load-bearing. Read `references/migration-notes.md` for the incident behind this phase.
 
-Skip entirely if the repo has no `supabase/migrations/` (root or one level deep). Auto-detect the prod ref from the **Repo Reference** (Vetted `lagvszfwsruniuinxdjb`, Congrats/backend `uvszvjbzcvkgktrvavqe`); if unknown, ask — never guess a ref.
+Skip entirely if the repo has no `supabase/migrations/` (root or one level deep). Auto-detect the prod ref from the Repo Reference; if unknown, ask — never guess a ref.
 
-**1. Enumerate the migrations in this batch** (the `staging..main` delta, same window Phase 3 used):
+**4.1 Enumerate from the pinned release revision, preserving change status.**
+
 ```bash
-git diff --name-only origin/$MAIN..origin/$STAGING -- 'supabase/migrations/*.sql' 2>/dev/null
+git diff --name-status "$BASE" "$HEAD" -- 'supabase/migrations/*.sql' 2>/dev/null
 # (also check a one-level-deep path, e.g. congrats/supabase/migrations/, per repo layout)
 ```
-If none → print "No migrations in this batch" and continue to Phase 4.
 
-**2. For each migration, read its SQL and classify it — additive vs non-additive.** This is the load-bearing decision:
+Review the file **contents at `HEAD`**. Additionally flag any historical migration (already on target) whose content was **modified or deleted** between `BASE` and `HEAD` — that is never routine; it requires explicit investigation before anything publishes. If none in the delta and none modified → print "No migrations in this batch" and continue.
 
-| Class | What it looks like | Prod-apply timing |
-|---|---|---|
-| **Additive** | `ADD COLUMN [IF NOT EXISTS]`, `CREATE TABLE`, `CREATE INDEX`, `CREATE OR REPLACE FUNCTION` (body change that no *stale deployed edge fn* writes against), new RLS/`GRANT`/permission row, new trigger on a new column | Safe to apply to prod **independently** — before, during, or after the code merge. Also safe to **pre-apply for qa-mirror rehearsal** (see `.claude/rules/pre-apply-additive-migration-for-qa-mirror.md`). |
-| **Non-additive** | Tightening/replacing a `CHECK`, remapping a text domain (`UPDATE … WHERE col='old'` + CHECK swap), dropping/renaming a column, a data **backfill**, or an RPC/function body change that a **currently-deployed edge fn still writes against** | **Must deploy atomically with its writer.** Do NOT apply to prod ahead of the code, and do NOT pre-apply for rehearsal. Pair the migration apply with the edge-fn deploy in the same go-live step (`.claude/rules/migration-and-writer-deploy-atomically.md`). |
+**4.2 Assess compatibility — no blanket additive-safety guarantees.** "Additive" does not mean "safe". For each migration assess and record: **compatibility** (does old code run against the new schema AND does new code run if the migration is not yet applied?), **locking** (will it take an `ACCESS EXCLUSIVE` lock on a hot table? full-table rewrite?), **prerequisites** (extensions, roles, prior migrations), and **affected runtime** (which edge functions, crons, or clients read/write the touched objects). When unsure, assume coupled (fail safe). The tell is "does an already-live writer's behavior change the instant this lands?" — if yes, it's coupled.
 
-When unsure which class a migration is, treat it as **non-additive** (fail safe). The tell for non-additive is "does an already-live writer's behavior change the instant this lands?" — if yes, it's coupled.
+**4.3 Record migration state with all postconditions.** Read-only checks against the **prod** ref via SQL (`information_schema`, `to_regclass`, `pg_proc` + new-marker, `supabase_migrations.schema_migrations` registry):
 
-**3. Check whether each migration's key object is already on prod** (read-only; catches "shipped in a prior batch" and "already pre-applied for rehearsal"):
-```bash
-# Per migration, pick its key object and existence-check it against the PROD ref via
-# the Supabase MCP execute_sql (project_id = <prod ref>). Examples:
-#   column:  SELECT 1 FROM information_schema.columns WHERE table_name='…' AND column_name='…';
-#   table:   SELECT to_regclass('public.<table>');
-#   function:SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-#            WHERE n.nspname='public' AND p.proname='<fn>' AND pg_get_functiondef(p.oid) LIKE '%<new-marker>%';
-#   registry:SELECT 1 FROM supabase_migrations.schema_migrations WHERE version='<ts>';
-```
-Use a `<new-marker>` (a column/branch the migration introduces) for `CREATE OR REPLACE` so "present" means *the new body*, not the old one.
-
-**4. Route each migration and add it to the audit output:**
-
-| State | Action |
+| State | Postconditions (ALL required) |
 |---|---|
-| **Already on prod** (object present + registry row) | ✅ note "migration already applied to prod (prior batch or pre-applied for rehearsal)" — nothing to do at go-live. |
-| **Additive, not on prod** | 📋 add to the PR body's go-live checklist: "Apply `<file>` to prod SQL editor at go-live." Offer to pre-apply now for qa-mirror rehearsal if the user wants (additive-only). |
-| **Non-additive, not on prod** | ⚠️ add to the go-live checklist as a **coupled** step: "Apply `<file>` **together with** deploying `<edge fn>` — do not apply ahead of the code." Flag it prominently; this is the one that causes outages if applied early. |
+| `verified_applied` | Key object present on prod AND registry row for the migration version present. Object alone is not enough; registry alone is not enough. |
+| `missing` | Key object absent AND registry row absent. |
+| `partial_or_drifted` | Object present but registry absent (hand-applied?), registry present but object absent (failed/rolled-back apply?), or object present with a different definition than `HEAD` content. Treat as blocked until reconciled. |
+| `unknown` | Checks could not run (no access, error, ambiguous key object). Blocks `ready` the same as `partial_or_drifted`. |
 
-**5. Emit a "⚠️ Migration — Run on Production at go-live" block into the PR body** (Phase 4) listing each not-on-prod migration with its class and the raw DDL, so the DDL is visible at merge time. Never use `supabase db push` (files may have been edited after first apply); apply via the Dashboard SQL editor.
+For `CREATE OR REPLACE` function changes, "present" means the **new body** (match on a marker only the new version contains), not the old one.
 
-**Guardrails:**
-- **Read-only here.** This phase *classifies and reports*; it does not apply anything to prod. Applying additive migrations early for rehearsal is a **separate, user-initiated** step (the pre-apply rule), never an automatic side effect of `merge-to-prod`.
-- **The prod ref is per-repo — never hardcode one repo's ref for another** (same discipline as the qa-handoff staging ref).
-- This does not replace `qa-handoff` Step 3.5 (which applies to *staging* for QA); this is the *prod* side, at promotion time.
+**4.4 Coupled changes get an ordered deploy/verify/recovery checklist — never "atomic".** Sequential database and runtime operations are not truly atomic; do not describe them that way. Each coupled pair gets: ordered steps (migration step + code/deploy step in dependency order), a verification query per step, and a recovery action per step (what to run if that step fails after the previous one succeeded). **Embed this checklist directly in the PR body** (Phase 5 template) so it is visible at merge time.
 
-Print the migration audit under the Phase 3 table and pause with the rest of the audit.
+Apply via the Dashboard SQL editor in filename order at go-live. Never `supabase db push` (files may have been edited after first apply).
+
+Guardrails:
+
+- **Read-only here.** This phase classifies and reports; it applies nothing. Early pre-apply for rehearsal is a separate, user-initiated step under its own rule, never an automatic side effect.
+- **The prod ref is per-repo** — never hardcode one repo's ref for another.
+- This is the *prod* side at promotion time; it does not replace staging-side QA migration checks.
+
+**Gate G4 (explicit):** every delta migration listed with its assessment + state, checklist embedded in the PR template when coupled work exists. `partial_or_drifted`/`unknown` force the release verdict to `blocked`/`incomplete`.
 
 ---
 
-## Phase 4: Create or Update the staging→main PR
+## Phase 5: Publish the promotion PR (only on `ready`)
 
-Check for an existing open PR:
-```bash
-EXISTING=$(gh pr list --base $MAIN --head $STAGING --state open --json number -q '.[0].number')
-```
+### 5.1 Manifest: the versioned record of what was evidenced
 
-Draft a **terse** PR title + body (keep it short — no filler prose):
+Define one JSON release manifest per run (schema `mtp-manifest/2.0`). It contains: repository identity (remote URL + resolved slug), pinned `BASE`/`HEAD` SHAs + fetch timestamps, per-card entries (number, state, validated deliverables with repo-qualified PR refs + merge SHAs, readiness evidence), the full §3.1 change inventory with per-change evidence or `unreviewed` flags, migration/runtime requirements with states, and blockers. Validate with `scripts/manifest.py` before publishing — it exits non-zero on any schema or state violation.
 
-**Title:** `chore: merge to prod — YYYY-MM-DD batch (N tickets)`
+The manifest **records evidence; it is not trusted merely because it exists in a PR.** Every consumer (this skill's finalize, any human, any other tool) re-validates the manifest AND the live state it points to. A manifest copied from another run, hand-edited, or pointing at moved pins is rejected and the evidence is rebuilt.
 
-**Body:**
+### 5.2 Managed PR-body section (machine-owned, human-respecting)
+
+Store the manifest and all generated content inside a clearly delimited managed section of the PR body. Everything outside the markers belongs to the operator and must be preserved across updates (use `scripts/managed_section.py` — never string-concatenate a new body over the old one):
+
 ```markdown
+<!-- merge-to-prod:managed:begin -->
 ## Staging → Prod batch (YYYY-MM-DD)
 
 Merging N tickets from the **Merge to Prod** column of the {Board Name} board.
 
+Base: <BASE SHA> · Head: <HEAD SHA> · Verdict: ready
+
 ### Tickets
-- #<num> [Title](https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<num>) — one-line note
+- #<num> [Title](https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<num>) — one-line note + evidence (PR repo#num @ sha, state)
 - …
 
-### Infra / chore
-- <one-line per infra commit, if any>
+### Unmatched changes
+- <one-line per §3.1 change with its evidence; unreviewed items never appear here — they block instead>
+
+### Migration / go-live checklist
+- <each not-on-prod migration with its §4 state + ordered steps + verification + recovery; raw DDL linked, not pasted, when long>
+
+<!-- merge-to-prod:manifest version="2.0" -->
+```json
+{ …manifest… }
+```
+<!-- merge-to-prod:managed:end -->
 ```
 
-Execution:
+Operator notes, reviewer checklists, and any headings outside these markers survive every update. On a body whose managed section was hand-edited (markers present but content divergent), treat the manifest as suspect: re-validate, rebuild if it fails, and say so.
+
+### 5.3 Create or update
+
 ```bash
-if [ -n "$EXISTING" ]; then
-  gh pr edit $EXISTING --title "$TITLE" --body "$BODY"
-else
-  gh pr create --base $MAIN --head $STAGING --title "$TITLE" --body "$BODY"
-fi
+EXISTING=$(gh pr list --base $MAIN --head $STAGING --state open --json number -q '.[0].number')
 ```
 
-On `--dry-run`: print the title + body and the command that would be run. Don't edit or create.
+- If `EXISTING` set → `gh pr edit $EXISTING` replacing only the managed section.
+- Else → `gh pr create --base $MAIN --head $STAGING --title "$TITLE" --body "$BODY"`.
+- Title: `chore: merge to prod — YYYY-MM-DD batch (N tickets)`. Keep it terse — no filler prose.
+- On `--dry-run`: print the title + body and the exact command that would run. Execute nothing.
+
+**Gate G5 (explicit):** verdict is `ready`, pins revalidated fresh, manifest validates (including its G1 `merge_check` record), managed-section replace used. Otherwise print-and-stop per §3.5.
 
 ---
 
-## Phase 5: Fizzy Cleanup (ask first)
+## Phase 6: Fizzy triage of already-decided cards (ask first)
 
-Show the planned Fizzy actions and pause for confirmation:
+This phase moves only cards the audit already decided. It re-decides nothing.
+
+Show the planned actions and pause for confirmation. **Reuse the existing user authorization** from the confirm step — if the user already authorized "close already-shipped + move back premature for this batch", do not ask twice. **Request missing authorization only after preparing the concrete action list** (never a bare "can I touch Fizzy?"):
 
 ```
-Planned Fizzy actions:
-  - Close (shipped, already in main): #A, #B, #C
-  - Move back to "QA to be confirmed": #X, #Y
-  - Leave in place (shipping in this PR): #1, #2, #3
+Planned Fizzy actions (batch YYYY-MM-DD, BASE <sha> HEAD <sha>):
+  - Close (already_on_target, verified): #A, #B, #C
+  - Move back to "QA to be confirmed" (not_ready, verified): #X, #Y
+  - Leave in place (covered, shipping in this PR): #1, #2, #3
+  - Needs human (unknown / non_code_complete without evidence): #U… (no action proposed)
 ```
+
+`unknown` cards are never auto-moved. `non_code_complete` cards close only with their explicit completion evidence cited in the close comment.
 
 On confirmation:
 
-**Close shipped cards** — this is a **state change**, not a column move:
+**Close shipped cards** — a **state change**, not a column move:
+
 ```bash
 # Fizzy "Done" is card closure. There is no "Done" column with a column_id.
 curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/closure.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN"
-# 204 = success
+# 204 = success — then READ BACK the card and assert closed before reporting it
 ```
 
 **Move premature cards back to QA to be Confirmed:**
+
 ```bash
 curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/triage.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"column_id\": \"$QA_COLUMN_ID\"}"
-# 204 = success
+# 204 = success — then READ BACK the card and assert the new column
 ```
 
 **Post a comment on each moved-back card** explaining why (HTML, Fizzy-friendly):
+
 ```bash
 curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/comments.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \
@@ -319,65 +375,108 @@ curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/<N>/comments.json
   -d '{"comment": {"body": "<p>Moved back from <b>Merge to Prod</b> during the YYYY-MM-DD batch (PR #NNN). PR #MMM is still open — code is not in integration branch yet. Re-test once merged.</p>"}}'
 ```
 
-Leave **Covered** cards in Merge to Prod — they stay there until the PR actually merges. Use `--finalize` later.
+**Check every mutation response and read back resulting state** (the `scripts/fizzy-file-card` create→triage→verify pattern applies to closes and moves too). After an uncertain write (timeout, ambiguous status, connection reset), **reconcile before retrying**: read the current card state; only retry the write if the read shows it did not land. Never retry blindly — a timed-out close that actually landed must not become a double-close + confused report.
+
+Leave **covered** cards in Merge to Prod — they stay until the PR actually merges. Use `--finalize` later.
 
 ---
 
-## Phase 6: Finalize (separate invocation after merge)
+## Phase 7: Finalize (separate invocation, after merge)
 
-`/merge-to-prod --finalize <PR_NUMBER>` runs after the PR has been merged to main.
+`/merge-to-prod --finalize <PR_NUMBER>` runs after the promotion PR merged to main. It re-validates everything — the manifest is a starting pointer, never the proof.
 
 ```bash
-# 1. Verify the PR is merged
-gh pr view $PR_NUMBER --json state,mergedAt --jq '.state'
-# Expect: "MERGED". If "OPEN", stop.
+# 1. Verify the PR is merged, in the resolved repo, on the expected branches
+gh pr view $PR_NUMBER --json state,mergedAt,baseRefName,headRefName,mergeCommit,repository \
+  --jq '{state, base: .baseRefName, head: .headRefName, sha: .mergeCommit.oid}'
+# Expect: state MERGED, base == target branch, head == integration branch.
+# If OPEN (or wrong repo/branches), stop.
+MERGED_SHA=<mergeCommit.oid>   # the actual revision that landed — evidence re-anchors here
+```
 
-# 2. Extract ticket numbers — ONLY from bullet lines under "### Tickets",
-#    NOT from anywhere in the body. Otherwise GitHub PR numbers like (#541),
-#    parenthetical refs like "Card #644", and related-ticket refs like
-#    "(from #318)" all get matched and wrongly closed.
+```bash
+# 2. Extract candidate ticket numbers — ONLY from bullet lines under "### Tickets"
+#    INSIDE the managed section. Never from the whole body: GitHub PR numbers
+#    like (#541), parenthetical refs like "Card #644", and related-ticket refs
+#    like "(from #318)" all false-positive under whole-body extraction.
+#    Use scripts/card_refs.py (bounded, word-boundary, repo-aware). There is
+#    no awk fallback — whole-body grep/awk extraction is banned because it
+#    false-positives on the refs named above:
 TICKETS=$(gh pr view $PR_NUMBER --json body -q .body \
-  | awk '/^### Tickets[[:space:]]*$/ {flag=1; next} /^### / {flag=0} flag' \
-  | grep -oE '^- #[0-9]+' | grep -oE '[0-9]+' | sort -u)
+  | python3 scripts/card_refs.py --stdin)
+```
 
-# 3. Print before closing so a wrong list is visible before mutation
-echo "About to close the following tickets:"
-for N in $TICKETS; do echo "  - #$N"; done
+```bash
+# 3. For EACH candidate: re-read current card state, re-validate deliverable
+#    containment against MERGED_SHA (not the pre-merge HEAD pin), and confirm
+#    required deployment/migration evidence where the manifest requires it.
+#    New conflicting evidence (card reopened, revert landed after the merge,
+#    migration still missing on prod) BLOCKS that card — it is skipped, not closed.
+```
 
-# 4. Close each
+```bash
+# 4. Legacy PRs without a manifest: reconstruct and validate the evidence from
+#    scratch (pins → inventory → containment → migration states). Never close
+#    from Markdown ticket-number extraction alone.
+```
+
+```bash
+# 5. Close each validated card; check the mutation response AND read back state.
 for N in $TICKETS; do
   curl -s -X POST "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/cards/$N/closure.json" \
     -H "Authorization: Bearer $FIZZY_API_TOKEN"
+  # assert HTTP 204, then GET the card and assert closed before counting it
 done
 ```
 
-Confirm with a summary:
+Confirm with a separated summary — **never report blanket success after partial failure**:
+
 ```
-Finalize complete for PR #NNN:
-  - Closed N tickets: #A, #B, …
+Finalize complete for PR #NNN (merged <sha>):
+  Closed (validated): #A, #B
+  Skipped (blocked, reason per card): #X (revert landed after merge), #Y (migration still missing on prod)
+  Blocked (needs human): #U (conflicting evidence — <what>)
 ```
 
 ---
 
-## Confirmation Message (end of Phase 5)
+## Confirmation Message (end of Phase 6)
 
 ```
 Merge to Prod — done for this batch
 
 PR: #<NNN> — {title}
-  Status: OPEN, awaiting review
+  Status: OPEN, awaiting review (preparation only — not merged, not deployed)
+
+Context: <owner>/<slug> · <staging>@<HEAD sha> → <main>@<BASE sha>
+Verdict: ready | blocked | incomplete (+ manifest version)
 
 Shipping (N cards, stay in Merge to Prod):
   #1, #2, …
 
-Closed (already in main, N cards):
+Closed (already_on_target, N cards):
   #A, #B, …
 
 Moved back to QA to be confirmed (N cards):
   #X, #Y — reason per card
 
-Next: after PR merges, run `/merge-to-prod --finalize <NNN>` to close the shipping cards.
+Needs human (unknown, N cards):
+  #U… — what evidence is missing
+
+Next: after PR merges, run `/merge-to-prod --finalize <NNN>` to re-validate and close the shipping cards.
 ```
+
+---
+
+## Helper scripts (in `scripts/`, stdlib Python only)
+
+| Script | Purpose |
+|---|---|
+| `scripts/manifest.py` | Validate (and scaffold) the `mtp-manifest/2.0` JSON: required fields, SHA shape, state enums, per-change evidence completeness. Used before publish and during finalize. |
+| `scripts/card_refs.py` | Bounded card-reference extraction: managed-section scope, bullet-line anchor, word-boundary numbers (`#12` ≠ `312`), repo-qualified PR identities. Used by finalize; also usable to audit Phase 3 candidates. |
+| `scripts/managed_section.py` | Extract/replace the `merge-to-prod:managed` PR-body section while preserving operator content outside the markers; detects hand-edited and legacy (markerless) bodies. |
+
+These are narrow parsing/validation helpers, not a release runner — the workflow decisions stay in this skill. Reused patterns (not duplicated code): `verifying-apis` manifest-driven stdlib validation; `fizzy-file-card` mutate→check-response→read-back; `selective-staging-merge` is the separate workflow to recommend when staging carries excluded work — do not re-implement cherry-picks here.
 
 ---
 
@@ -385,17 +484,19 @@ Next: after PR merges, run `/merge-to-prod --finalize <NNN>` to close the shippi
 
 - Always `.json` suffix on action endpoints (closure, triage, comments, assignments) — missing suffix returns 422 or 401
 - **"Done" is card closure** — `POST /cards/<N>/closure.json` — NOT a column move. Fizzy's default "Done" bucket is a status field, not a column with an ID.
-- Mutations return `204 No Content` on success; creations return `201 Created`
+- Mutations return `204 No Content` on success; creations return `201 Created`. Assert the status, then read back the card — a bare 2xx without readback is not proof.
 - Token lives in `.env.local` as `$FIZZY_API_TOKEN`. Never hardcode.
 - Comment body is HTML — markdown is ignored and renders as a blob
 - Card body field is `description`, comment body field is `body` (they differ)
-- **Column listings paginate with an escalating page size (15→30→50…).** `GET .../cards.json` returns only the first page unless you follow `Link: rel="next"` / pass `?page=N`. The response carries `X-Total-Count`. Any column listing MUST loop pages to exhaustion and assert the fetched count equals `X-Total-Count` — never stop on the first <15 page; a single fetch silently truncates a >15-card column (the cause of a 44-card backlog reading as 15). Use the per-column endpoint — `cards.json?board_id=` is silently ignored. Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.
-- **Column membership ≠ this repo.** A board's Merge-to-Prod column can hold cards whose work ships via sister repos (Congrats / backend). Detect repo via each card's QA-signoff branch name (`lovable-staging`=Vetted, `verify-deployments`=Congrats, `backend-verify-deployment`=backend) before classifying; never judge a sister-repo card against this repo's git, and never close it from here.
+- **Column listings paginate with an escalating page size (15→30→50…).** `GET .../cards.json` returns only the first page unless you follow `Link: rel="next"` / `?page=N`. The response carries `X-Total-Count`. Any column listing MUST loop pages to exhaustion and assert the fetched count equals `X-Total-Count` — never stop on the first <15 page; a single fetch silently truncates a >15-card column. Use the per-column endpoint — `cards.json?board_id=` is silently ignored. Full rules: "Reading a Board — AUTHORITATIVE" in `/fizzy`.
+- **Column membership ≠ this repo.** A board's Merge-to-Prod column can hold cards whose work ships via sister repos. Detect the owning repo per card via its QA-signoff branch name (`lovable-staging`=Vetted, `verify-deployments`=Congrats, `backend-verify-deployment`=backend) and qualify every PR identity by repo before classifying; never judge a sister-repo card against this repo's git, and never close or move it from an invocation scoped to another repo.
 - **Title-verify before trusting a PR number.** Card numbers and PR numbers collide across repos and a comment often cites *another* ticket's PR. Confirm the candidate PR's title names the ticket (`fix(#N)`/`Fizzy #N`) before using its merge commit as proof-of-ship.
 
 ---
 
 ## Repo Reference
+
+Primary resolution is git remote identity (Phase 0). The directory-name table below is a fallback hint only:
 
 | Repo directory name | Integration branch | Target branch | Board |
 |---|---|---|---|
@@ -403,13 +504,13 @@ Next: after PR merges, run `/merge-to-prod --finalize <NNN>` to close the shippi
 | `vetted-congrats-Flow-GENEROUS` | `verify-deployments` | `main` | Congrats |
 | `backend-restructing` | `backend-verify-deployment` | `main` | Congrats (shared) |
 
-Match by directory basename (`basename "$(git rev-parse --show-toplevel)"`). If no match: ask the user.
+If no match: ask the user.
 
 ---
 
 ## Board Reference
 
-Used by Phase 1 to derive column IDs from the board.
+Used by Phase 0 to derive column IDs from the board.
 
 | Board | Board ID | Merge to Prod Column ID | QA to be Confirmed Column ID |
 |---|---|---|---|
@@ -418,6 +519,7 @@ Used by Phase 1 to derive column IDs from the board.
 | Bugs | `03fl735hqcd0h1pettl8o94oo` | *(lookup by name on first run)* | `03fnl3h1becpuazzhahxbn208` |
 
 **Lookup by name** (fallback when column ID not known):
+
 ```bash
 curl -s "https://app.fizzy.do/{FIZZY_ACCOUNT_ID}/boards/$BOARD_ID/columns.json" \
   -H "Authorization: Bearer $FIZZY_API_TOKEN" \

@@ -1,0 +1,3 @@
+fix: retry backoff with jitter (#90)
+
+Merges cleanly, covered by the existing suite.

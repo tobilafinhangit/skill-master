@@ -73,7 +73,7 @@ git checkout $STAGING_BRANCH && git pull origin $STAGING_BRANCH
 git checkout $TARGET_BRANCH
 ```
 
-**Main→staging drift guard (run now, before mapping any commits).** If `$TARGET_BRANCH` (main) holds commits the staging branch lacks — hotfixes cherry-picked straight to main, features via `mtp/*-main` branches — the cherry-pick dry-run in Phase 5 will hit conflicts mid-flight instead of surfacing the problem up front. Check with `git cherry` (patch-id, so dual-SHA back-merges don't false-positive — **never** `git merge-base --is-ancestor`, which false-fires on every promotion merge commit):
+**Main→staging drift guard (run now, before mapping any commits).** If `$TARGET_BRANCH` (main) holds commits the staging branch lacks — hotfixes cherry-picked straight to main, features via `mtp/*-main` branches — the cherry-pick dry-run in Phase 5 will hit conflicts mid-flight instead of surfacing the problem up front. Check with `git cherry` (patch-id, so dual-SHA back-merges don't false-positive — **never** `git merge-base --is-ancestor`, which false-fires on every promotion merge commit). **`git cherry` is patch-equivalence evidence only, not a conflict detector:** a clean cherry (no `+` lines) does not prove the merge will be conflict-free — it misses merge-commit content and rename resolutions — so run the independent prospective-merge check below against the same pinned revisions and require both to be clean:
 
 ```bash
 DRIFT=$(git cherry "origin/$STAGING_BRANCH" "origin/$TARGET_BRANCH" 2>/dev/null | grep -c '^+')
@@ -84,7 +84,19 @@ if [ "$DRIFT" -gt 0 ]; then
 fi
 ```
 
-If `DRIFT` > 0 → surface it and recommend reconciling first (merge `origin/$TARGET_BRANCH` into `$STAGING_BRANCH` in an isolated worktree, `{WORKTREE_GIT_EMAIL}` author (your own repo-automation identity)) before running the selective merge. Same guard as `merge-to-prod` Phase 1.5. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`.
+Independent prospective-merge check (same guard as `merge-to-prod` Phase 1) — run even when `DRIFT` is 0, in an isolated temp worktree (never the working tree), then remove it:
+```bash
+BASE=$(git rev-parse origin/$TARGET_BRANCH)
+HEAD=$(git rev-parse origin/$STAGING_BRANCH)
+WT=".claude/worktrees/selective-merge-check-<yyyymmdd>"
+git worktree add --detach "$WT" "$BASE"
+git -C "$WT" merge --no-commit --no-ff "$HEAD"
+MERGE_EXIT=$?
+git -C "$WT" merge --abort 2>/dev/null; true
+git worktree remove --force "$WT"
+```
+
+If `DRIFT` > 0 OR `MERGE_EXIT` != 0 → surface it and recommend reconciling first (merge `origin/$TARGET_BRANCH` into `$STAGING_BRANCH` in an isolated worktree, `{WORKTREE_GIT_EMAIL}` author (your own repo-automation identity)) before running the selective merge. A clean cherry with a failing merge check still blocks — cherry-clean is not conflict-free. See `.claude/rules/merge-flow-isolated-worktree-not-primary-tree.md`.
 
 ---
 
