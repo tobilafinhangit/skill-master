@@ -13,7 +13,11 @@ claim text search proves the workflow.
 
 import json
 import os
+import pathlib
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +26,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
 import card_refs
 import managed_section
 import manifest
+import run_merge_check
 
 
 def fixture(name):
@@ -102,6 +107,101 @@ class ManifestTest(unittest.TestCase):
         m["merge_check"]["merge_exit"] = 1
         errors = manifest.validate(m)
         self.assertTrue(any("conflict" in e for e in errors), errors)
+
+    def test_output_hash_must_be_64_hex_when_present(self):
+        m = fixture_json("manifest_ready.json")
+        m["merge_check"]["output_sha256"] = "not-a-sha256"
+        errors = manifest.validate(m)
+        self.assertTrue(any("output_sha256" in e for e in errors), errors)
+
+
+class MergeCheckTest(unittest.TestCase):
+    def setUp(self):
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="mtp-merge-check-test-"))
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        self.git("init", "-q")
+        self.git("config", "user.email", "test@example.com")
+        self.git("config", "user.name", "Test")
+        (self.repo / "file.txt").write_text("base\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "base")
+        self.base = self.git("rev-parse", "HEAD")
+        self.git("branch", "base-ref", self.base)
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def git(self, *args, cwd=None):
+        return subprocess.check_output(["git", *args], cwd=cwd or self.repo,
+                                       text=True).strip()
+
+    def test_clean_merge_writes_reproducible_record(self):
+        self.git("checkout", "-qb", "feature")
+        (self.repo / "feature.txt").write_text("feature\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "feature")
+        head = self.git("rev-parse", "HEAD")
+        self.git("branch", "head-ref", head)
+        first = self.root / "first.json"
+        second = self.root / "second.json"
+        args = ["--repo-root", str(self.repo), "--base", self.base,
+                "--head", head, "--base-ref", "base-ref", "--head-ref", "head-ref"]
+        self.assertEqual(run_merge_check.run(args + ["--output", str(first)]), 0)
+        self.assertEqual(run_merge_check.run(args + ["--output", str(second)]), 0)
+        a = json.loads(first.read_text())
+        b = json.loads(second.read_text())
+        self.assertEqual(a["status"], "clean")
+        self.assertRegex(a["output_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(a["output_sha256"], b["output_sha256"])
+        self.assertEqual(a["base_sha"], self.base)
+        self.assertEqual(a["head_sha"], head)
+
+    def test_conflict_writes_conflict_record(self):
+        self.git("checkout", "-qb", "feature")
+        (self.repo / "file.txt").write_text("feature\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "feature")
+        head = self.git("rev-parse", "HEAD")
+        self.git("checkout", "-q", "-b", "target", self.base)
+        (self.repo / "file.txt").write_text("target\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "target")
+        base = self.git("rev-parse", "HEAD")
+        self.git("branch", "-f", "base-ref", base)
+        self.git("branch", "-f", "head-ref", head)
+        output = self.root / "conflict.json"
+        self.assertEqual(run_merge_check.run([
+            "--repo-root", str(self.repo), "--base", base,
+            "--head", head, "--base-ref", "base-ref", "--head-ref", "head-ref",
+            "--output", str(output)]), 1)
+        record = json.loads(output.read_text())
+        self.assertEqual(record["status"], "conflict")
+        self.assertEqual(record["merge_exit"], 1)
+        self.assertIn("file.txt", record["conflict_paths"])
+
+    def test_invalid_sha_writes_no_record(self):
+        output = self.root / "invalid.json"
+        self.assertEqual(run_merge_check.run([
+            "--repo-root", str(self.repo), "--base", "not-a-sha",
+            "--head", self.base, "--base-ref", "base-ref",
+            "--head-ref", "base-ref", "--output", str(output)]), 2)
+        self.assertFalse(output.exists())
+
+    def test_clean_check_leaves_no_temp_worktree(self):
+        self.git("checkout", "-qb", "feature")
+        (self.repo / "feature.txt").write_text("feature\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "feature")
+        head = self.git("rev-parse", "HEAD")
+        self.git("branch", "head-ref", head)
+        output = self.root / "cleanup.json"
+        self.assertEqual(run_merge_check.run([
+            "--repo-root", str(self.repo), "--base", self.base,
+            "--head", head, "--base-ref", "base-ref", "--head-ref", "head-ref",
+            "--output", str(output)]), 0)
+        worktrees = self.repo / ".claude" / "worktrees"
+        self.assertTrue(not worktrees.exists() or not any(worktrees.iterdir()))
 
 
 class CardRefsTest(unittest.TestCase):
