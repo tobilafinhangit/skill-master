@@ -97,22 +97,21 @@ git cherry "origin/$STAGING" "origin/$MAIN" | grep '^+' | while read _ sha; do
 done
 ```
 
-**Independent mergeability check (pinned revisions, isolated temp environment).** Do not test-merge in the working tree and do not depend on `/tmp` worktrees:
+**Independent mergeability check (pinned revisions, isolated temp environment).** Use the wrapper below; do not hand-write the record, test-merge in the working tree, or depend on `/tmp` worktrees:
 
 ```bash
-BASE=$(git rev-parse origin/$MAIN)      # pinned in G0
-HEAD=$(git rev-parse origin/$STAGING)   # pinned in G0
-WT=".claude/worktrees/mtp-merge-check-<yyyymmdd>"   # repo-local, removed afterwards
-git worktree add --detach "$WT" "$BASE"
-git -C "$WT" merge --no-commit --no-ff "$HEAD"
-MERGE_EXIT=$?
-git -C "$WT" merge --abort 2>/dev/null; true
-git worktree remove --force "$WT"
+BASE=$(git rev-parse "origin/$MAIN")      # pinned in G0
+HEAD=$(git rev-parse "origin/$STAGING")   # pinned in G0
+python3 .agent/skills/merge-to-prod/scripts/run_merge_check.py \
+  --repo-root "$(git rev-parse --show-toplevel)" \
+  --base "$BASE" --head "$HEAD" \
+  --base-ref "origin/$MAIN" --head-ref "origin/$STAGING" \
+  --output /tmp/merge-check.json
 ```
 
-`MERGE_EXIT != 0` means the promotion PR will conflict regardless of what `git cherry` said. Report the conflicting paths; do not proceed to build the PR until reconciled.
+The wrapper validates that each pin is the exact tip of its named ref, runs the merge in a unique repo-local temporary worktree, and atomically writes the JSON record. Its exit status is `0` for clean, `1` for conflict (record still written), and `2` for setup/cleanup failure (no record). A clean record includes `output_sha256`, the SHA-256 of the canonical merged Git tree listing; rerunning at the same pins must reproduce it. `MERGE_EXIT != 0` means the promotion PR will conflict regardless of what `git cherry` said. Report the conflicting paths; do not proceed to build the PR until reconciled.
 
-**Record the result in the manifest.** A passing G1 produces the run's `merge_check` record: pinned main SHA, pinned staging SHA, the temp worktree/check identifier, the merge command's exit code, and the explicit status `clean`. `scripts/manifest.py` rejects a manifest with a missing, malformed, stale, or non-clean G1 record — and without a validating manifest nothing publishes (G5) and finalize has nothing to consume.
+**Record the result in the manifest.** Copy the wrapper's JSON verbatim into the run's `merge_check` field; do not hand-create or edit it. A passing G1 produces the pinned main/staging SHAs, the temporary worktree identifier, merge exit/status, conflict paths, and reproducible `output_sha256`. `scripts/manifest.py` rejects a manifest with a missing, malformed, stale, or non-clean G1 record — and without a validating manifest nothing publishes (G5) and finalize has nothing to consume. Before publication, rerun the wrapper at the same pins and compare `output_sha256`.
 
 **If real drift exists → STOP. Do not build the PR yet.** Offer to **reconcile first**: merge `origin/$MAIN` into `$STAGING` in an **isolated worktree** (never the primary tree), with an enumerated list of exactly what the reconcile will pull, and explicit user confirmation. Only continue once both checks are clean. (The *forward* guard lives here; the `hotfix` skill's Phase 5 is the *upstream* fix that merges `main` back into staging right after each hotfix so drift never accumulates.)
 
@@ -472,11 +471,12 @@ Next: after PR merges, run `/merge-to-prod --finalize <NNN>` to re-validate and 
 
 | Script | Purpose |
 |---|---|
+| `scripts/run_merge_check.py` | The sole producer of the G1 prospective-merge record: validates ref tips, runs the isolated merge, hashes the canonical merged tree, writes atomically, and cleans up. |
 | `scripts/manifest.py` | Validate (and scaffold) the `mtp-manifest/2.0` JSON: required fields, SHA shape, state enums, per-change evidence completeness. Used before publish and during finalize. |
 | `scripts/card_refs.py` | Bounded card-reference extraction: managed-section scope, bullet-line anchor, word-boundary numbers (`#12` ≠ `312`), repo-qualified PR identities. Used by finalize; also usable to audit Phase 3 candidates. |
 | `scripts/managed_section.py` | Extract/replace the `merge-to-prod:managed` PR-body section while preserving operator content outside the markers; detects hand-edited and legacy (markerless) bodies. |
 
-These are narrow parsing/validation helpers, not a release runner — the workflow decisions stay in this skill. Reused patterns (not duplicated code): `verifying-apis` manifest-driven stdlib validation; `fizzy-file-card` mutate→check-response→read-back; `selective-staging-merge` is the separate workflow to recommend when staging carries excluded work — do not re-implement cherry-picks here.
+The wrapper is deliberately narrow: it owns only the mechanical G1 check and record production; workflow decisions stay in this skill. Reused patterns (not duplicated code): `verifying-apis` manifest-driven stdlib validation; `fizzy-file-card` mutate→check-response→read-back; `selective-staging-merge` is the separate workflow to recommend when staging carries excluded work — do not re-implement cherry-picks here.
 
 ---
 

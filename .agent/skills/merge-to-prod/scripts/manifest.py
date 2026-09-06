@@ -31,6 +31,7 @@ MIGRATION_STATES = ("verified_applied", "missing", "partial_or_drifted",
                     "unknown", "not_applicable")
 VERDICTS = ("ready", "blocked", "incomplete")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 # Substrings that indicate an external mutation. Used by --check-dry-run to
 # prove a dry-run plan executed nothing. Keep narrow: read-only git/gh/fizzy
@@ -129,6 +130,11 @@ def validate(manifest):
             _err(errors, "merge_check.status is 'conflict' — reconcile main "
                          "into staging and record a fresh clean check; "
                          "a conflicted G1 record rejects the manifest")
+        output_hash = check.get("output_sha256")
+        if output_hash is not None and not (
+                isinstance(output_hash, str) and SHA256_RE.match(output_hash)):
+            _err(errors, "merge_check.output_sha256 must be a 64-hex SHA-256 "
+                 "when present")
 
     verdict = manifest.get("verdict")
     if verdict not in VERDICTS:
