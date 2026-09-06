@@ -11,7 +11,7 @@ Prepare a reviewed PR or direct push for QA. This skill may prepare the selected
 
 Announce: “I’m using the qa-handoff skill to hand this off to QA.”
 
-Use `scripts/release_workflow_support.py` relative to the installed skill-master root. If it is missing, report `Incomplete` with its expected path and stop.
+Use `<skill-master-root>/scripts/release_workflow_support.py` (the shared support module lives at the skill-master repository root, not inside the `qa-handoff` skill directory). If it is missing, report `Incomplete` with its expected path and stop.
 
 ## Target and configuration
 
