@@ -110,7 +110,7 @@ def main(argv=None):
     results = {"canonical_sha": sha, "mode": "apply" if args.apply else "dry-run", "consumers": []}
     for name in names:
         result = inspect_consumer(name, POLICIES[name])
-        if args.apply and result["status"] == "ready":
+        if args.apply and result["status"] in ("ready", "dirty"):
             result.update(apply_consumer(name, POLICIES[name], sha))
         results["consumers"].append(result)
     print(json.dumps(results, indent=2, sort_keys=True))
