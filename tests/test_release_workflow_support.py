@@ -13,6 +13,8 @@ from scripts.release_workflow_support import (
     resolve_direct_push_context,
     require_dry_run_read_only,
     run_git,
+    reconcile_ci_result,
+    validate_local_ci_fallback,
 )
 
 
@@ -104,6 +106,44 @@ class ReleaseWorkflowSupportTests(unittest.TestCase):
         self.assertEqual(manifest["modified"], ["old.py"])
         self.assertEqual(manifest["deleted"], ["gone.py"])
         self.assertEqual(manifest["history_drift"], ["unpromoted commit"])
+
+    def test_local_ci_fallback_requires_complete_advisory_evidence(self):
+        github = {"run_id": "run-1", "status": "in_progress", "observed_at": "2026-09-07T20:00:00Z"}
+        local = {
+            "commit_sha": "head",
+            "clean_tree": True,
+            "timeout_minutes": 10,
+            "node_version": "v22.0.0",
+            "install_mode": "npm ci --ignore-scripts",
+            "commands": [{"command": "npm run build", "status": "passed"}],
+        }
+        evidence = validate_local_ci_fallback(expected_head_sha="head", github=github, local=local)
+        self.assertEqual(evidence["state"], "local-pass/github-pending")
+        self.assertEqual(reconcile_ci_result(evidence, head_sha="head", github_status="success")["state"], "github-reconciled")
+
+        cases = (
+            {**local, "clean_tree": False},
+            {**local, "commit_sha": "stale"},
+            {**local, "node_version": ""},
+            {**local, "commands": [{"command": "npm run build", "status": "failed"}]},
+        )
+        for invalid in cases:
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(EvidenceError):
+                    validate_local_ci_fallback(expected_head_sha="head", github=github, local=invalid)
+
+        with self.assertRaises(EvidenceError):
+            validate_local_ci_fallback(
+                expected_head_sha="head",
+                github={**github, "status": "success"},
+                local=local,
+            )
+        with self.assertRaises(EvidenceError):
+            validate_local_ci_fallback(
+                expected_head_sha="head",
+                github=github,
+                local={**local, "substitutes_for": ["migration"]},
+            )
 
     def test_html_escape_and_dry_run_guard(self):
         self.assertEqual(html_escape('<script>&"'), "&lt;script&gt;&amp;&quot;")

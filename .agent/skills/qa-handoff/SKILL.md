@@ -11,7 +11,7 @@ Prepare a reviewed PR or direct push for QA. This skill may prepare the selected
 
 Announce: “I’m using the qa-handoff skill to hand this off to QA.”
 
-Use `<skill-master-root>/scripts/release_workflow_support.py` (the shared support module lives at the skill-master repository root, not inside the `qa-handoff` skill directory). If it is missing, report `Incomplete` with its expected path and stop.
+Use `<skill-master-root>/scripts/release_workflow_support.py` (the shared support module lives at the skill-master repository root, not inside the `qa-handoff` skill directory), including its `validate_local_ci_fallback` and `reconcile_ci_result` helpers. If it is missing, report `Incomplete` with its expected path and stop.
 
 ## Target and configuration
 
@@ -32,6 +32,28 @@ Normalize and sort comments/events. Preserve historical failures and associate e
 ### 3. Validate readiness and plan the environment
 
 Check code-review status, required checks, current revision, prerequisites for the entire integration revision being exposed, and deployment configuration. A review that is `Incomplete` cannot produce a complete handoff. An unrelated dirty primary checkout does not block work from a correct isolated snapshot.
+
+#### Local CI fallback
+
+Run the repository's documented local fast lane, local production build, and changed-scope
+tests before waiting on slow remote checks when possible. Record exact commands, exit
+statuses, runtime versions, checkout cleanliness, and the target revision. These results
+are supplemental evidence only; they do not replace clean-runner GitHub CI, post-merge
+integration checks, deployment verification, migration verification, Edge Function
+verification, or environment parity.
+
+If a required GitHub check is still pending after the configured threshold (default: 10
+minutes), continue only when the user explicitly selects the local-CI fallback. Mark the
+state `local-pass/github-pending`, name the pending check and elapsed time, and preserve
+the remote check URL. Never call a pending check passed. A local fallback may support an
+explicitly authorized merge, but it cannot complete QA handoff by itself and cannot
+bypass any deployment, migration, security, RBAC/RLS, or production-parity prerequisite.
+Re-fetch the remote check and reconcile its final result before declaring the handoff
+complete.
+
+If the local wrapper fails due to host tooling, run its documented constituent commands
+directly where feasible and record the limitation. Do not edit CI, dependencies, or
+verification scope to turn a host failure into a false pass.
 
 For migrations, inspect registry and actual object/definition state first. Apply reviewed files in dependency order through the authorized staging mechanism. Never rewrite SQL by stripping cron statements. Block production-directed side effects, unsafe reruns, partial schema state, and incompatible writer/schema combinations. Coordinate schema and writer deployment, then verify expected definitions or behavior—not just a row count.
 
@@ -71,4 +93,4 @@ On partial failure, retain completed actions, refresh all state, and resume only
 
 Report **QA Handoff Complete** only when all required evidence is present, the selected environment is verified, the current revision is deployed/merged as applicable, the guide is published, assignment and column state are read back, and no blocker remains. For `qa-mirror`, this additionally requires the production-parity manifest to be complete, every required eligible production artifact to be applied/deployed and verified, and every non-additive/deferred dependency to be proven irrelevant to the tested behavior. Otherwise report **Blocked** or **Partial**, listing completed actions and exact missing evidence. No failed, skipped, queued, stale, or unverified prerequisite can produce completion.
 
-See `references/release-workflow-evidence.md` for the shared evidence and failure semantics.
+See `<skill-master-root>/references/release-workflow-evidence.md` for the shared evidence and failure semantics.
