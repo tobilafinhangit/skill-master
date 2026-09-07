@@ -277,8 +277,9 @@ python3 .agent/skills/distribute-skill/scripts/propagate.py --apply --consumer v
 
 The runner resolves `origin/main` once, records that canonical SHA, and creates
 a disposable worktree from each consumer's configured remote integration ref.
-It skips dirty or invalid checkouts, verifies the submodule pointer is the only
-change, and removes its temporary worktree in all cases. `--apply` commits and
+It ignores local dirt in the existing checkout, verifies the disposable
+worktree's submodule pointer is the only change, and removes its temporary
+worktree in all cases. Invalid repositories are skipped. `--apply` commits and
 pushes only for explicitly configured direct-push integrations; PR-mode
 consumers receive a pointer branch and PR targeting their configured
 integration branch. No force-pushes, resets, stashes, or in-place cleanup are
