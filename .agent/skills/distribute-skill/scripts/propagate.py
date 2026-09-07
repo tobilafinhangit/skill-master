@@ -72,16 +72,13 @@ def update_worktree(repo, ref, sha, action=None):
         added = git(repo, "worktree", "add", "--detach", worktree, f"origin/{ref}", check=False)
         if added.returncode != 0:
             return {"status": "failed", "error": "worktree creation failed"}
-        initialized = git(worktree, "submodule", "update", "--init", "submodules/skill-master", check=False)
-        if initialized.returncode != 0:
-            return {"status": "failed", "error": "submodule initialization failed"}
-        submodule = Path(worktree) / "submodules/skill-master"
-        fetched = git(submodule, "fetch", "origin", "main", check=False)
-        if fetched.returncode != 0:
-            return {"status": "failed", "error": "skill-master fetch failed"}
-        checked = git(submodule, "checkout", "--detach", sha, check=False)
-        if checked.returncode != 0:
-            return {"status": "failed", "error": "skill-master checkout failed"}
+        # A pointer bump needs only the gitlink. Do not initialize/clone the
+        # nested submodule: that is slow, network-dependent, and unnecessary.
+        updated = git(worktree, "update-index", "--add",
+                      "--cacheinfo", f"160000,{sha},submodules/skill-master",
+                      check=False)
+        if updated.returncode != 0:
+            return {"status": "failed", "error": "submodule pointer update failed"}
         changed = git(worktree, "status", "--porcelain")
         if any(not line.endswith("submodules/skill-master") for line in changed.stdout.splitlines()):
             return {"status": "failed", "error": "worktree has unrelated changes"}
