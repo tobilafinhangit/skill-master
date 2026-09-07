@@ -7,7 +7,7 @@ license: MIT
 
 # QA Handoff
 
-Prepare a reviewed PR or direct push for QA. This skill may prepare the selected staging environment after the checks below. Production preparation requires explicit authorization for the exact action and target; `qa-mirror` is used only when explicitly selected. This skill never treats a queued merge, Git push, deploy lock, or nonzero row count as proof of readiness.
+Prepare a reviewed PR or direct push for QA. This skill may prepare the selected staging environment after the checks below. Production preparation requires explicit authorization for the exact action and target; `qa-mirror` is used only when explicitly selected. When `qa-mirror` is explicitly selected, production-backed parity preparation is part of this handoff: eligible reviewed migrations and required Edge Functions must be prepared and verified against production before the handoff can complete. This skill never treats a queued merge, Git push, deploy lock, or nonzero row count as proof of readiness.
 
 Announce: “I’m using the qa-handoff skill to hand this off to QA.”
 
@@ -15,9 +15,9 @@ Use `<skill-master-root>/scripts/release_workflow_support.py` (the shared suppor
 
 ## Target and configuration
 
-Resolve card and PR/direct revision separately. Read repository instructions and `.claude/skills/qa-handoff.json`. Detect the integration branch, selected target, frontend deployment, API target, Supabase ref, required schema/functions, and relevant configuration as one environment. Never guess a project ref.
+Resolve card and PR/direct revision separately. Read repository instructions and `.claude/skills/qa-handoff.json`. Detect the integration branch, explicitly selected target, frontend deployment, API target, Supabase ref, required schema/functions, and relevant configuration as one environment. Never guess a project ref. `staging` and `qa-mirror` are distinct target modes; do not silently substitute one for the other. If `qa-mirror` is not explicitly selected, do not mutate production.
 
-For Vetted, staging is `tobsmmjzmlljtyikujlr` and production is `lagvszfwsruniuinxdjb`; verify the staging ref differs from production before any staging migration. Production preparation is outside the default handoff.
+For Vetted, staging is `tobsmmjzmlljtyikujlr` and production is `lagvszfwsruniuinxdjb`; verify the staging ref differs from production before any staging migration. Production preparation is outside the default staging handoff, but is required for an explicitly selected `qa-mirror` handoff after exact target/ref confirmation and authorization.
 
 ## Workflow
 
@@ -37,21 +37,31 @@ For migrations, inspect registry and actual object/definition state first. Apply
 
 Every Edge Function deployment names its project ref and uses the repository’s guarded deploy script. Verify frontend deployment for the selected revision; pushing Git is insufficient. A skipped or unverified prerequisite leaves readiness blocked.
 
+For an explicitly selected `qa-mirror`, build a production-parity manifest from the exact reviewed/merged revision before declaring readiness. Include every changed or required migration, RPC/function definition, RLS/grant/permission change, Edge Function and `_shared` dependency, function configuration/cron setting, and frontend/API target. Use the Supabase plugin/MCP for live registry, object-definition, grant, Edge Function, and configuration checks where available; when production DDL is required, use the approved Supabase Dashboard SQL editor and record the exact migration plus `schema_migrations` registry result. Do not use raw `execute_sql` or an unguarded CLI deploy as a substitute for the repository’s production rails.
+
+Classify each missing production migration before acting:
+
+- **Reviewed additive**: apply it in dependency order through the approved production Dashboard SQL workflow, including its registry insert, then read back the registry and expected objects/definitions.
+- **Non-additive, writer-affecting, or ambiguous**: stop and report the exact migration, dependent writers/functions, and required coordination. Do not apply it merely to unblock QA.
+- **Staging-only or intentionally deferred**: record the explicit deferral and block a `qa-mirror` completion if the card’s tested behavior depends on it.
+
+For each required production Edge Function, deploy only from the exact merged integration revision (use a clean isolated worktree if necessary) via `scripts/deploy-edge-fn.sh`; verify the correct production ref, active version, source provenance, `_shared` dependencies, `verify_jwt`, cron/API-key configuration, and a safe runtime smoke check. A version number, deployment lock, or cross-project source hash alone is not evidence of parity. Schema and writer/function deployment must be coordinated atomically where the change requires both.
+
 ### 4. Merge and prepare the selected target
 
 For PRs, use `--match-head-commit <verified-head>` and confirm actual merged state; queued or auto-merge-enabled is not merged. Do not merge in the primary worktree. For direct pushes, record the verified range and skip merge commands.
 
-For `qa-mirror`, sync only when it was selected. Check both unpromoted history and resulting code trees separately. Ignore only documented deploy-lock bookkeeping paths; verify deployment evidence independently using project, version, source provenance, and behavior. Substantive drift or conflicts remain blocked and are reported exactly.
+For `qa-mirror`, sync only when it was selected. Check both unpromoted history and resulting code trees separately. Ignore only documented deploy-lock bookkeeping paths; verify deployment evidence independently using project, version, source provenance, and behavior. Complete the production-parity manifest and its approved preparation steps before syncing/declaring the mirror ready. Substantive code drift, backend drift, missing required migration/function, or conflicts remain blocked and are reported exactly.
 
 ### 5. Verify behavior
 
-Verify target URL, revision, frontend deployment, API target, Supabase project, schema, functions, configuration, prerequisites, test identity/role, regression checks, and expected behavior. A production-backed preview is not blanket permission to mutate live customer data.
+Verify target URL, revision, frontend deployment, API target, Supabase project, schema, functions, configuration, prerequisites, test identity/role, regression checks, and expected behavior. For `qa-mirror`, verify the live production-backed schema/function/config contract as the actual calling role, including RLS/RBAC denial and allow paths where applicable. A production-backed preview is not blanket permission to mutate live customer data; use demo/internal projects and explicitly scoped test fixtures only.
 
 ### 6. Publish and mutate card state last
 
 Generate a current testing guide with target URL, revision, prerequisites, identity/role, actions, expected results, regression checks, and failure responses. Reconcile an existing matching publication before posting. Then ensure tester assignment, verify it, move the card to QA last, and read back final card state. Refresh state before every mutation and verify afterward.
 
-Generated comments identify repository, PR/direct revision, and review cycle. If a write is uncertain, re-fetch before retrying; never blindly toggle assignment/column or repeat a comment POST.
+Generated comments identify repository, PR/direct revision, selected target mode, Supabase refs, production-parity actions/evidence, and review cycle. If a write is uncertain, re-fetch before retrying; never blindly toggle assignment/column or repeat a comment POST.
 
 ### 7. Resume and dry-run
 
@@ -59,6 +69,6 @@ On partial failure, retain completed actions, refresh all state, and resume only
 
 ## Completion rule
 
-Report **QA Handoff Complete** only when all required evidence is present, the selected environment is verified, the current revision is deployed/merged as applicable, the guide is published, assignment and column state are read back, and no blocker remains. Otherwise report **Blocked** or **Partial**, listing completed actions and exact missing evidence. No failed, skipped, queued, stale, or unverified prerequisite can produce completion.
+Report **QA Handoff Complete** only when all required evidence is present, the selected environment is verified, the current revision is deployed/merged as applicable, the guide is published, assignment and column state are read back, and no blocker remains. For `qa-mirror`, this additionally requires the production-parity manifest to be complete, every required eligible production artifact to be applied/deployed and verified, and every non-additive/deferred dependency to be proven irrelevant to the tested behavior. Otherwise report **Blocked** or **Partial**, listing completed actions and exact missing evidence. No failed, skipped, queued, stale, or unverified prerequisite can produce completion.
 
 See `references/release-workflow-evidence.md` for the shared evidence and failure semantics.
