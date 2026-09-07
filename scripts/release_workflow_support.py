@@ -193,6 +193,63 @@ def require_complete_evidence(record: Mapping[str, Any], *, required: Sequence[s
         raise EvidenceError("Environment evidence must be an object")
 
 
+def validate_local_ci_fallback(
+    *,
+    expected_head_sha: str,
+    github: Mapping[str, Any],
+    local: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate advisory local-CI evidence without treating it as authoritative CI."""
+    if not expected_head_sha or local.get("commit_sha") != expected_head_sha:
+        raise EvidenceError("Local CI fallback commit does not match the reviewed head")
+    if local.get("clean_tree") is not True:
+        raise EvidenceError("Local CI fallback requires a clean tree")
+    timeout = local.get("timeout_minutes")
+    if not isinstance(timeout, (int, float)) or timeout <= 0:
+        raise EvidenceError("Local CI fallback requires a positive timeout")
+    if not local.get("node_version") or not local.get("install_mode"):
+        raise EvidenceError("Local CI fallback requires runtime and install evidence")
+    commands = local.get("commands")
+    if not isinstance(commands, list) or not commands:
+        raise EvidenceError("Local CI fallback requires command results")
+    if any(
+        not isinstance(command, Mapping)
+        or not command.get("command")
+        or command.get("status") != "passed"
+        for command in commands
+    ):
+        raise EvidenceError("Local CI fallback requires every listed command to pass")
+    if github.get("status") not in {"queued", "in_progress", "pending"}:
+        raise EvidenceError("Local CI fallback requires an explicitly pending GitHub check")
+    if not github.get("run_id") or not github.get("observed_at"):
+        raise EvidenceError("Local CI fallback requires GitHub check identity and observation time")
+    if local.get("substitutes_for"):
+        raise EvidenceError("Local CI fallback cannot substitute for deployment, migration, security, or environment checks")
+    return {
+        "state": "local-pass/github-pending",
+        "authority": "github",
+        "github": dict(github),
+        "local_fallback": dict(local),
+        "reconciliation": {"status": "pending"},
+    }
+
+
+def reconcile_ci_result(
+    evidence: Mapping[str, Any], *, head_sha: str, github_status: str
+) -> dict[str, Any]:
+    """Attach the later GitHub result to a previously recorded local fallback."""
+    if evidence.get("state") != "local-pass/github-pending":
+        raise EvidenceError("Only a pending local fallback can be reconciled")
+    if evidence.get("local_fallback", {}).get("commit_sha") != head_sha:
+        raise EvidenceError("Reconciliation head does not match the local fallback")
+    if github_status not in {"success", "failure", "cancelled", "skipped"}:
+        raise EvidenceError("GitHub result is not terminal")
+    result = dict(evidence)
+    result["state"] = "github-reconciled"
+    result["reconciliation"] = {"status": github_status, "head_sha": head_sha}
+    return result
+
+
 def inspect_git_manifest(name_status: str, cherry_output: str = "") -> dict[str, list[str]]:
     manifest: dict[str, list[str]] = {"added": [], "modified": [], "deleted": [], "renamed": [], "other": [], "history_drift": []}
     for line in name_status.splitlines():
