@@ -258,7 +258,7 @@ git log --oneline HEAD@{1}..HEAD 2>/dev/null
 
 ## Mode: propagate
 
-Update the skill-master submodule in ALL consuming repos (not just the current one).
+Update the skill-master submodule in consuming repos using disposable worktrees.
 
 ### When to use
 - After pushing to skill-master from any source
@@ -266,7 +266,27 @@ Update the skill-master submodule in ALL consuming repos (not just the current o
 
 ### Workflow
 
-Same as Step 4 of sync mode — iterate through all repos and update the submodule. Report success/failure for each.
+Use the runner from the skill-master checkout. Dry-run is the default and never
+modifies an existing consumer checkout:
+
+```bash
+python3 .agent/skills/distribute-skill/scripts/propagate.py --dry-run
+python3 .agent/skills/distribute-skill/scripts/propagate.py --dry-run --consumer vettedai
+python3 .agent/skills/distribute-skill/scripts/propagate.py --apply --consumer vettedai
+```
+
+The runner resolves `origin/main` once, records that canonical SHA, and creates
+a disposable worktree from each consumer's configured remote integration ref.
+It skips dirty or invalid checkouts, verifies the submodule pointer is the only
+change, and removes its temporary worktree in all cases. `--apply` commits and
+pushes only for explicitly configured direct-push integrations; PR-mode
+consumers receive a pointer branch and PR targeting their configured
+integration branch. No force-pushes, resets, stashes, or in-place cleanup are
+permitted.
+
+Each result reports `updated`, `noop`, `dirty`, `missing`, `failed`, `pushed`,
+or `pr_created`, plus the old/new pointer and commit or PR identifier where
+applicable. The aggregate command exits non-zero if any consumer fails.
 
 ---
 
@@ -301,7 +321,7 @@ fi
 
 | Error | Resolution |
 |-------|------------|
-| Submodule has local changes | `git checkout -- .` in the submodule before updating |
+| Consumer checkout is dirty | Skip it; use the runner's disposable worktree and preserve the original checkout |
 | skill-master push rejected (behind remote) | `git stash && git pull --rebase && git stash pop && git push` |
 | Repo not found at expected path | Skip, warn user, suggest updating the repo table |
 | Skill exists in local but not in skill-master | Ask user: create new skill in skill-master, or local-only? |
@@ -314,4 +334,6 @@ fi
 - **Local-only skills** (in `.claude/skills/` but not in skill-master) are left untouched — sync only operates on skills that exist in both places
 - **The submodule is pinned — updates do NOT auto-arrive.** Consumers stay on their pinned commit until deliberately bumped; the editor owns propagation (see "How consumers pick up updates" above)
 - **Pointer commits are branch-aware** — commit + push the bump only on an integration branch; on a feature branch, leave it uncommitted and report it (committing would pollute that branch's PR)
+- **Propagation is policy-driven** — never infer a target from the currently checked-out branch; use `scripts/propagate.py` and its explicit repository map
+- **Apply is opt-in** — dry-run is the default; failed consumers are isolated and reported without stopping unrelated consumers
 - **Skills must be symlinks, not copies** — a real-directory copy under `.agent/skills/` silently shadows the canonical and drifts; convert it to a symlink into the submodule
