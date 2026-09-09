@@ -80,6 +80,33 @@ node .claude/skills/mcp-gap-capture/log_gap.mjs --dry \
 `attempted_tool`: the Vetted MCP tool name you expected (or `unknown`).
 Optional `--ticket <fizzy-id>` if you also filed a card manually.
 
+## Triage context (for the reviewing engineer)
+
+A gap line without repro steps is a riddle for whoever picks it up. Assume a different
+engineer will triage it with no access to your session. Always add these on Tier 1
+(high-confidence) gaps; add them on Tier 2 whenever you have them:
+
+- `--repro`: minimal steps to hit the gap (tool called, arguments that matter, the exact
+  error or response). IDs (project/candidate/run UUIDs) are welcome — they are not PII.
+  Never paste emails, phones, tokens, or raw SQL — the logger redacts them anyway.
+- `--expected`: what the tool should have done instead.
+- `--impact`: who is blocked and what it costs (burned unlocks, unsent outreach, manual
+  UI workarounds, misattributed funnel data).
+- `--session <id>`: pin a stable session label when logging several related gaps so they
+  read as one story instead of scattered lines (the default is a random id per call).
+
+```bash
+node .claude/skills/mcp-gap-capture/log_gap.mjs \
+  --intent "invite applied-never-invited row via bulk path; no-match" \
+  --attempted-tool "vetted_candidates_bulkInvite" \
+  --fallback-path "manual" \
+  --confidence high \
+  --repro "candidates_find + candidates_details resolve the row; bulkInvite with its projectCandidateId returns 'No matching candidates found'; nudge on the same id fails identically" \
+  --expected "bulkInvite matches any row in the project, or returns a reason (e.g. ineligible-status) instead of a bare no-match" \
+  --impact "recruiter falls back to UI invite; funnel misattributes the candidate as organic" \
+  --session "paystack-dba-20260909"
+```
+
 The sink path is resolved (in order): `--sink` → `.mcp-gap-capture.json` in cwd →
 `$MCP_GAP_SINK` → default `_tobi_wiki/wiki/mcp-gaps.jsonl`. Per-repo config lives in
 `.mcp-gap-capture.json`.
@@ -97,7 +124,9 @@ The sink path is resolved (in order): `--sink` → `.mcp-gap-capture.json` in cw
 { "ts": "ISO", "repo": "vettedai-audition", "agent": "opencode",
   "session_id": "sess-ab12cd", "intent": "<redacted, ≤200c>",
   "attempted_tool": "vetted_candidates_top", "fallback_path": "supabase_mcp",
-  "confidence": "high", "ticket": "optional" }
+  "confidence": "high", "ticket": "optional",
+  "repro": "<optional, redacted, ≤1000c>", "expected": "<optional, redacted, ≤1000c>",
+  "impact": "<optional, redacted, ≤1000c>" }
 ```
 
 ## Rollup
