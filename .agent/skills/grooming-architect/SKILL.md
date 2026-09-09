@@ -1,6 +1,7 @@
 ---
 name: grooming-architect
 description: Optimized for Human+AI Agent workflows. Converts high-level product intent into technical tickets that include file anchors, logic constraints, and verification protocols for coding agents.
+version: 1.1.0
 ---
 
 # Grooming Architect (AI-Ready Edition)
@@ -125,6 +126,37 @@ Then list **3 ways the plan could be wrong** as one-liners — they don't have t
 
 Add this as a **🧪 Pre-Execution Sanity Check** section in the ticket template below.
 
+### 8. MCP Surface Decision (required for every new or materially changed ticket)
+
+Every new, reopened, or materially changed ticket must explicitly decide whether the
+change needs a Vetted MCP surface. This is an MCP-specific check; do not broaden it into
+a generic external-integration checklist.
+
+If **MCP is required**, document all of the following in the ticket:
+
+- the proposed tool name and input/output shape;
+- whether it is a read tool or a confirmed action;
+- the existing OAuth scope to reuse, or why a new scope is justified;
+- confirmation behavior for actions and preview-before-confirmation behavior where applicable;
+- quota and cost accounting, including whether the operation consumes screens or credits;
+- the shared runtime handler/consumer that actually executes the tool;
+- registry, tool-definition, scope, cost, and generated-documentation updates; and
+- integration/component/E2E tests proving the live MCP dispatch path.
+
+If **MCP is not required**, document an explicit rationale and a concrete future revisit
+trigger (for example, a later request for agent access, automation, or parity with an existing
+product action). Do not leave the decision implicit.
+
+Keep MCP work in the main ticket when it is coupled to the product behavior or cannot ship
+usefully on its own. Create a dependent MCP ticket only when the MCP surface is independently
+deployable and sequence it after the product ticket. Existing finalized tickets are not
+retroactively rewritten; this rule applies when creating, reopening, or materially changing a
+ticket.
+
+### 9. Changelog
+
+- **1.1.0 (2026-09-09):** Made the MCP Surface Decision mandatory for new, reopened, and materially changed tickets.
+
 ---
 
 ## 🎫 Ticket Template for Fizzy/Cursor
@@ -159,6 +191,11 @@ Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (ho
 - **Acceptance Traceability (required for every behavioral criterion):**
   - `[criterion]` → `[exact production consumer/path]` → `[integration/component/E2E test that proves the live path]`
   - Do not mark a criterion complete because a helper, type, adapter, or unit test exists. If the ticket is intentionally scaffolding-only, say so explicitly and list the future consumer ticket.
+- **MCP Surface Decision (required):**
+  - **MCP impact:** `[required | not required]`
+  - **If required:** `[tool shape; read/action classification; reused/new OAuth scope and justification; confirmation; quota/cost; shared handler; registry/scope/cost/docs updates; live MCP integration test]`
+  - **If not required:** `[explicit rationale]` | **Future revisit trigger:** `[specific trigger]`
+  - **Ticket split:** `[same ticket | dependent MCP ticket]` with the coupling or independent-deployment reason.
 
 🧪 **Pre-Execution Sanity Check:**
 
@@ -166,6 +203,7 @@ Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (ho
 - **Base branch:** [`lovable-staging` | `main` (with `-main` suffix)]
 - **RBAC story:** [new permission key + system role grants in same migration; `PermissionGate` wiring; or "n/a"]
 - **Plan-tier / feature-flag behavior:** [backend hard-gate path; frontend soft-gate copy; or "n/a"]
+- **MCP surface check:** [complete MCP contract and live-dispatch test plan; or explicit non-MCP rationale plus future revisit trigger]
 - **3 ways this plan could be wrong:**
   1. [honest one-liner]
   2. [honest one-liner]

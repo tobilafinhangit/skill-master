@@ -1,7 +1,7 @@
 ---
 name: tech-review
 description: Pressure-tests an implementation plan or technical approach through a senior full-stack engineer + senior tech lead panel — critique, revised plan, then impact analysis — and prints a clean final plan. Use when reviewing a plan after grooming-architect or ticket-review, mid-hotfix, or before building something new, and the user says "tech review", "pressure-test this plan", "review this approach", or "stress-test this plan".
-version: 1.0.0
+version: 1.1.0
 license: MIT
 ---
 
@@ -60,6 +60,17 @@ user path and an integration/component/E2E test proving that usage. An abstracti
 tests is a review finding unless the ticket explicitly says the work is scaffolding-only. Require
 the revised plan to include `criterion → production path → test` traceability for every behavioral
 acceptance criterion.
+
+**MCP surface gate (mandatory):** Every new, reopened, or materially changed ticket must contain
+the grooming-architect **MCP Surface Decision**. Verify that decision against the actual
+`agent-tools` runtime consumers and the repository's tool-definition, OAuth-scope, quota/cost,
+registry, and generated-documentation surfaces. If MCP is required, validate the tool shape,
+read-versus-confirmed-action classification, scope reuse or new-scope justification,
+preview/confirmation behavior, quota accounting, shared handler, and live dispatch tests. If MCP
+is not required, verify that the rationale is explicit and includes a concrete future revisit
+trigger. Missing MCP consideration or an unsupported MCP contract is a **hard review finding**;
+the revised plan must resolve it before build prompts are generated. Any new MCP tool must have
+both a runtime consumer and an integration/component/E2E test proving the live tool path.
 
 ### Step 2: Revised Plan (depends on Step 1)
 
@@ -160,6 +171,10 @@ Comment body shape:
 Fizzy gotchas: `.json` suffix on every endpoint; **`User-Agent` header is mandatory** (401 without it); comment field is `body`, not `content`; lists paginate at ~15/page. Token lives in `congrats/.env.local` as `$FIZZY_API_TOKEN`. See the `fizzy` skill for full API patterns.
 
 ## Notes
+
+## Changelog
+
+- **1.1.0 (2026-09-09):** Added the mandatory MCP surface hard gate and required validation of runtime, scope, cost, registry, documentation, and live-dispatch evidence.
 
 - **Stay grounded.** The value of this skill is verified critique, not generic advice. A subagent that hasn't opened the code produces the same review for every plan — don't accept that.
 - **Don't re-litigate the goal.** If the plan's objective seems wrong, flag it once in Open Questions and move on; the panel's job is the *approach*.
