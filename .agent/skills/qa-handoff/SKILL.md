@@ -11,7 +11,7 @@ Prepare a reviewed PR or direct push for QA. This skill may prepare the selected
 
 Announce: “I’m using the qa-handoff skill to hand this off to QA.”
 
-Use `<skill-master-root>/scripts/release_workflow_support.py` (the shared support module lives at the skill-master repository root, not inside the `qa-handoff` skill directory), including its `validate_local_ci_fallback` and `reconcile_ci_result` helpers. If it is missing, report `Incomplete` with its expected path and stop.
+Resolve the shared support module from the physical `skill-master` repository root, not from the installed/symlinked skills directory. The canonical path is `<skill-master-repo>/scripts/release_workflow_support.py`; when resolving `<skill-master-repo>`, first resolve the physical path of this `SKILL.md` and walk up from `.agent/skills/qa-handoff/` to the repository root. Do not assume the installed path (`~/.codex/skills/...`) is the repository root. Use the module's `validate_local_ci_fallback` and `reconcile_ci_result` helpers. If the canonical module is missing, report `Incomplete` with its expected path and stop.
 
 ## Target and configuration
 
