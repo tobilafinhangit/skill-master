@@ -55,25 +55,17 @@ If the local wrapper fails due to host tooling, run its documented constituent c
 directly where feasible and record the limitation. Do not edit CI, dependencies, or
 verification scope to turn a host failure into a false pass.
 
-For migrations, inspect registry and actual object/definition state first. Apply reviewed files in dependency order through the authorized staging mechanism. Never rewrite SQL by stripping cron statements. Block production-directed side effects, unsafe reruns, partial schema state, and incompatible writer/schema combinations. Coordinate schema and writer deployment, then verify expected definitions or behavior—not just a row count.
+For migrations on `staging`, inspect registry and actual object/definition state first. Apply reviewed files in dependency order through the authorized staging mechanism. Never rewrite SQL by stripping cron statements. Block production-directed side effects, unsafe reruns, partial schema state, and incompatible writer/schema combinations. Coordinate schema and writer deployment, then verify expected definitions or behavior—not just a row count.
 
 Every Edge Function deployment names its project ref and uses the repository’s guarded deploy script. Verify frontend deployment for the selected revision; pushing Git is insufficient. A skipped or unverified prerequisite leaves readiness blocked.
 
-For an explicitly selected `qa-mirror`, build a production-parity manifest from the exact reviewed/merged revision before declaring readiness. Include every changed or required migration, RPC/function definition, RLS/grant/permission change, Edge Function and `_shared` dependency, function configuration/cron setting, and frontend/API target. Use the Supabase plugin/MCP for live registry, object-definition, grant, Edge Function, and configuration checks where available; when production DDL is required, use the approved Supabase Dashboard SQL editor and record the exact migration plus `schema_migrations` registry result. Do not use raw `execute_sql` or an unguarded CLI deploy as a substitute for the repository’s production rails.
-
-Classify each missing production migration before acting:
-
-- **Reviewed additive**: apply it in dependency order through the approved production Dashboard SQL workflow, including its registry insert, then read back the registry and expected objects/definitions.
-- **Non-additive, writer-affecting, or ambiguous**: stop and report the exact migration, dependent writers/functions, and required coordination. Do not apply it merely to unblock QA.
-- **Staging-only or intentionally deferred**: record the explicit deferral and block a `qa-mirror` completion if the card’s tested behavior depends on it.
-
-For each required production Edge Function, deploy only from the exact merged integration revision (use a clean isolated worktree if necessary) via `scripts/deploy-edge-fn.sh`; verify the correct production ref, active version, source provenance, `_shared` dependencies, `verify_jwt`, cron/API-key configuration, and a safe runtime smoke check. A version number, deployment lock, or cross-project source hash alone is not evidence of parity. Schema and writer/function deployment must be coordinated atomically where the change requires both.
+For an explicitly selected `qa-mirror`, invoke the `sync-qa-mirror` skill against the exact reviewed/merged revision instead of inlining migration/Edge-Function/parity logic here. Its completion state (Synced / Blocked / Partial, with evidence) is the readiness evidence for this section — do not re-derive the production-parity manifest, migration classification, or Edge Function deploy/verify steps independently; they are specified once, in that skill.
 
 ### 4. Merge and prepare the selected target
 
 For PRs, use `--match-head-commit <verified-head>` and confirm actual merged state; queued or auto-merge-enabled is not merged. Do not merge in the primary worktree. For direct pushes, record the verified range and skip merge commands.
 
-For `qa-mirror`, sync only when it was selected. Check both unpromoted history and resulting code trees separately. Ignore only documented deploy-lock bookkeeping paths; verify deployment evidence independently using project, version, source provenance, and behavior. Complete the production-parity manifest and its approved preparation steps before syncing/declaring the mirror ready. Substantive code drift, backend drift, missing required migration/function, or conflicts remain blocked and are reported exactly.
+For `qa-mirror`, sync only when it was selected, and do so by invoking the `sync-qa-mirror` skill (never by hand-merging in this workflow) — it performs the isolated-worktree merge, worktree git-identity setup, `git cherry` drift check with empty-commit disambiguation, and the production-parity manifest/apply steps described in its own SKILL.md. Treat its returned completion state as authoritative: a `Blocked`/`Partial` result from `sync-qa-mirror` (substantive drift, a missing required migration/function, an unresolved conflict) leaves this handoff blocked and must be reported exactly as that skill reported it, not re-summarized or softened.
 
 ### 5. Verify behavior
 
@@ -91,6 +83,6 @@ On partial failure, retain completed actions, refresh all state, and resume only
 
 ## Completion rule
 
-Report **QA Handoff Complete** only when all required evidence is present, the selected environment is verified, the current revision is deployed/merged as applicable, the guide is published, assignment and column state are read back, and no blocker remains. For `qa-mirror`, this additionally requires the production-parity manifest to be complete, every required eligible production artifact to be applied/deployed and verified, and every non-additive/deferred dependency to be proven irrelevant to the tested behavior. Otherwise report **Blocked** or **Partial**, listing completed actions and exact missing evidence. No failed, skipped, queued, stale, or unverified prerequisite can produce completion.
+Report **QA Handoff Complete** only when all required evidence is present, the selected environment is verified, the current revision is deployed/merged as applicable, the guide is published, assignment and column state are read back, and no blocker remains. For `qa-mirror`, this additionally requires `sync-qa-mirror` to report **Synced** (not Blocked/Partial) for the exact reviewed/merged revision, and every non-additive/deferred dependency it recorded to be proven irrelevant to the tested behavior. Otherwise report **Blocked** or **Partial**, listing completed actions and exact missing evidence. No failed, skipped, queued, stale, or unverified prerequisite can produce completion.
 
 See `<skill-master-root>/references/release-workflow-evidence.md` for the shared evidence and failure semantics.
