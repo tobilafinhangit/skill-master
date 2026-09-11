@@ -1,7 +1,7 @@
 ---
 name: pr-verification
 description: Verifies PR safety and consumer compatibility without treating additions or consumer count as proof of safety.
-version: 2.0.0
+version: 2.0.1
 license: MIT
 ---
 
@@ -38,4 +38,4 @@ Return a structured result containing repository, revisions, changed-file manife
 
 Recommend impact analysis only when modified shared hooks/utilities/services have runtime side effects or resource lifecycles. Do not equate this recommendation with a blocker.
 
-The support module at `scripts/release_workflow_support.py` provides `inspect_git_manifest`, `ensure_fresh_revision`, and evidence validation. Missing support files are an actionable incomplete result, not a reason to substitute fragile shell snippets.
+The support module at `<skill-master-root>/scripts/release_workflow_support.py` provides `inspect_git_manifest`, `ensure_fresh_revision`, and evidence validation. Resolve `<skill-master-root>` from the physical `skill-master` repository root, never from the installed/copied skills directory: (1) `<current-repo>/submodules/skill-master` when working inside a consumer repo; (2) else resolve the physical path of this `SKILL.md` and walk up from `.agent/skills/pr-verification/` to the repository root. Missing support files are an actionable incomplete result, not a reason to substitute fragile shell snippets.

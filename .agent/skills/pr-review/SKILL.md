@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: Reviews a GitHub PR against its Fizzy ticket, validates regression risk and evidence, and optionally publishes a verdict.
-version: 2.0.0
+version: 2.0.1
 license: MIT
 ---
 
@@ -22,7 +22,7 @@ Resolve and record:
 - review scope (`ticket-compliance` or explicit `code-only`);
 - repository instruction files and relevant rules read.
 
-Use `<skill-master-root>/scripts/release_workflow_support.py` and its `validate_local_ci_fallback` / `reconcile_ci_result` helpers. If it is missing, stop with an actionable `Incomplete` result; do not improvise replacement commands.
+Resolve `<skill-master-root>` from the physical `skill-master` repository root, never from the installed/copied skills directory: (1) `<current-repo>/submodules/skill-master` when working inside a consumer repo; (2) else resolve the physical path of this `SKILL.md` and walk up from `.agent/skills/pr-review/` to the repository root. Use `<skill-master-root>/scripts/release_workflow_support.py` and its `validate_local_ci_fallback` / `reconcile_ci_result` helpers. If it is missing, stop with an actionable `Incomplete` result naming the expected path; do not improvise replacement commands.
 
 ## Workflow
 
