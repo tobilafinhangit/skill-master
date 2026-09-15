@@ -85,7 +85,7 @@ Set the worktree's git identity **before** the first commit — a merge commit a
 
 ```bash
 git fetch origin --quiet
-git cherry origin/qa-mirror origin/<integration-branch>
+git cherry origin/<integration-branch> origin/qa-mirror
 ```
 
 `+` lines are content unique to `qa-mirror` that never reached the integration branch. `-` lines are dual-SHA copies already present under a different commit — benign, ignore. `git merge-base --is-ancestor` is the wrong tool here: it false-fires immediately after every normal merge (the merge commit itself is never an ancestor of the other side), so it would flag drift on every clean sync.
