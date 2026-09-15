@@ -57,6 +57,12 @@ verification scope to turn a host failure into a false pass.
 
 For migrations on `staging`, inspect registry and actual object/definition state first. Apply reviewed files in dependency order through the authorized staging mechanism. Never rewrite SQL by stripping cron statements. Block production-directed side effects, unsafe reruns, partial schema state, and incompatible writer/schema combinations. Coordinate schema and writer deployment, then verify expected definitions or behavior—not just a row count.
 
+#### Runtime consumer-contract parity
+
+When the changed or tested frontend consumes a Supabase RPC, treat the RPC as a runtime contract, not merely a migration artifact. Inventory the call from the deployed frontend revision and record its operation name, argument names/types/order, target Supabase ref, and deployed frontend revision. Compare that contract with the target database's `pg_proc` signature, then make one real PostgREST call as an `authenticated` user with the required role/permissions. A `schema_migrations` row, `to_regprocedure()` result, or `service_role` SQL call alone is insufficient: it does not prove PostgREST schema-cache resolution, caller permissions, or consumer compatibility.
+
+Record each check in the versioned evidence record's `runtime_contracts` section and validate it with `validate_runtime_contract`. Any mismatch, missing smoke result, wrong target ref, stale frontend deployment, or unresolved prior QA finding blocks handoff. Do not replace a failed queue/API check with a passing check against a different RPC.
+
 Every Edge Function deployment names its project ref and uses the repository’s guarded deploy script. Verify frontend deployment for the selected revision; pushing Git is insufficient. A skipped or unverified prerequisite leaves readiness blocked.
 
 For an explicitly selected `qa-mirror`, invoke the `sync-qa-mirror` skill against the exact reviewed/merged revision instead of inlining migration/Edge-Function/parity logic here. Its completion state (Synced / Blocked / Partial, with evidence) is the readiness evidence for this section — do not re-derive the production-parity manifest, migration classification, or Edge Function deploy/verify steps independently; they are specified once, in that skill.

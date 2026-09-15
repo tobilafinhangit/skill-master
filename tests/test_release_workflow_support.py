@@ -15,6 +15,7 @@ from scripts.release_workflow_support import (
     run_git,
     reconcile_ci_result,
     validate_local_ci_fallback,
+    validate_runtime_contract,
 )
 
 
@@ -90,7 +91,8 @@ class ReleaseWorkflowSupportTests(unittest.TestCase):
             card_ids=["F-10", "F-11"],
             environment={"name": "staging", "project_ref": "stage-ref"},
         )
-        self.assertEqual(record["schema_version"], 1)
+        self.assertEqual(record["schema_version"], 2)
+        self.assertEqual(record["runtime_contracts"], [])
         require_complete_evidence(record, required=("repository", "head_sha", "environment"))
         with self.assertRaises(EvidenceError):
             require_complete_evidence(record)
@@ -165,6 +167,41 @@ class ReleaseWorkflowSupportTests(unittest.TestCase):
             run_git(("push", "origin", "main"), cwd=".")
         with self.assertRaises(EvidenceError):
             run_git(("-c", "core.sshCommand=evil", "show"), cwd=".")
+
+    def test_runtime_contract_requires_exact_rpc_signature_and_live_smoke(self):
+        expected = {
+            "kind": "supabase-rpc",
+            "name": "get_activation_opportunities",
+            "target_ref": "stage-ref",
+            "deployed_revision": "head-a",
+            "arguments": [
+                {"name": "p_status", "type": "text"},
+                {"name": "p_primary_parameter", "type": "text"},
+                {"name": "p_limit", "type": "integer"},
+                {"name": "p_offset", "type": "integer"},
+                {"name": "p_queue_state", "type": "text"},
+                {"name": "p_search", "type": "text"},
+                {"name": "p_rescue_eligible", "type": "boolean"},
+            ],
+        }
+        observed = {
+            "target_ref": "stage-ref",
+            "deployed_revision": "head-a",
+            "catalog_signature": expected["arguments"],
+            "smoke": {"role": "authenticated", "status": 200},
+        }
+        self.assertEqual(validate_runtime_contract(expected, observed)["status"], "passed")
+
+        with self.assertRaises(EvidenceError):
+            validate_runtime_contract(expected, {**observed, "target_ref": "prod-ref"})
+
+        mismatch = {**observed, "catalog_signature": expected["arguments"][:-2]}
+        with self.assertRaises(EvidenceError):
+            validate_runtime_contract(expected, mismatch)
+
+        no_smoke = {**observed, "smoke": {"role": "service_role", "status": 200}}
+        with self.assertRaises(EvidenceError):
+            validate_runtime_contract(expected, no_smoke)
 
 
 if __name__ == "__main__":

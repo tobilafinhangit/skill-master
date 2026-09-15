@@ -166,7 +166,7 @@ def build_evidence_record(
     if not repository or not head_sha:
         raise EvidenceError("Repository identity and head revision are required")
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "repository": repository,
         "pr_number": pr_number,
         "card_ids": list(card_ids),
@@ -177,6 +177,7 @@ def build_evidence_record(
         "findings": [],
         "coverage": {},
         "verification": {},
+        "runtime_contracts": [],
         "environment": dict(environment or {}),
         "completed_actions": [],
         "blockers": [],
@@ -191,6 +192,60 @@ def require_complete_evidence(record: Mapping[str, Any], *, required: Sequence[s
         raise EvidenceError("Missing evidence: " + ", ".join(missing))
     if not isinstance(record.get("environment", {}), Mapping):
         raise EvidenceError("Environment evidence must be an object")
+
+
+def validate_runtime_contract(
+    expected: Mapping[str, Any], observed: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Fail closed unless a deployed runtime contract matches its consumer.
+
+    This is deliberately a pure evidence validator. Network calls, catalog reads,
+    and authenticated smoke tests happen outside this module; their recorded
+    results are validated here so a migration row or service-role query cannot be
+    mistaken for a working browser contract.
+    """
+    if expected.get("kind") != "supabase-rpc" or not expected.get("name"):
+        raise EvidenceError("Runtime contract requires a Supabase RPC kind and name")
+    expected_args = expected.get("arguments")
+    observed_args = observed.get("catalog_signature")
+    if not isinstance(expected_args, list) or not isinstance(observed_args, list):
+        raise EvidenceError("Runtime contract requires expected and observed argument lists")
+
+    def normalize(arguments: list[Any]) -> list[tuple[str, str]]:
+        normalized: list[tuple[str, str]] = []
+        for argument in arguments:
+            if not isinstance(argument, Mapping) or not argument.get("name") or not argument.get("type"):
+                raise EvidenceError("Runtime contract contains a malformed argument")
+            normalized.append((str(argument["name"]), str(argument["type"])))
+        return normalized
+
+    expected_signature = normalize(expected_args)
+    observed_signature = normalize(observed_args)
+    if expected_signature != observed_signature:
+        raise EvidenceError(
+            f"Runtime contract mismatch for {expected['name']}: "
+            f"expected {expected_signature!r}, observed {observed_signature!r}"
+        )
+    if not observed.get("target_ref") or not observed.get("deployed_revision"):
+        raise EvidenceError("Runtime contract requires target ref and deployed revision")
+    if expected.get("target_ref") and expected["target_ref"] != observed["target_ref"]:
+        raise EvidenceError("Runtime contract target ref does not match the expected target")
+    if expected.get("deployed_revision") and expected["deployed_revision"] != observed["deployed_revision"]:
+        raise EvidenceError("Runtime contract deployed revision does not match the expected revision")
+
+    smoke = observed.get("smoke")
+    if not isinstance(smoke, Mapping) or smoke.get("role") != "authenticated" or smoke.get("status") not in {200, 204}:
+        raise EvidenceError("Runtime contract requires a successful authenticated smoke test")
+
+    return {
+        "status": "passed",
+        "kind": expected["kind"],
+        "name": expected["name"],
+        "target_ref": observed["target_ref"],
+        "deployed_revision": observed["deployed_revision"],
+        "signature": [{"name": name, "type": type_name} for name, type_name in observed_signature],
+        "smoke_role": smoke["role"],
+    }
 
 
 def validate_local_ci_fallback(

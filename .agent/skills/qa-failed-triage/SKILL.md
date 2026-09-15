@@ -85,6 +85,7 @@ Fan out per **Batch discipline** above: one subagent per card (waves of ~6, or t
 - **Class 2 (live-in-prod / deploy / env):**
   - Is it already live? `git merge-base --is-ancestor <main-merge-sha> origin/main`. For DB, query prod (`source .env.local`, service-role PostgREST or Supabase MCP `execute_sql`) for the actual function body / row counts.
   - Migrations applied? `schema_migrations` for the versions. Edge fns deployed? Supabase MCP `list_edge_functions` / `get_edge_function` (and check `entrypoint_path` isn't a dev laptop).
+  - For an RPC/API failure, inventory the exact deployed frontend call and compare its argument contract with the target `pg_proc` signature. Then reproduce the same call through PostgREST as an `authenticated` user with the required role. A passing catalog query or a different RPC does not clear the reported failure; record the consumer, target ref, deployed revision, signature, and smoke result in `runtime_contracts` evidence.
   - "Invalid price ID" etc. → is it hardcoded live-mode config that only fails in a test-mode/staging context? If so it's staging env drift, not a code bug.
 - **Class 3 (rule-misread):** Find the actual flow in source and check it against the project rules. A blocking modal on profile-unlock / billing is *correct* per `soft-gate-ui-hard-gate-wallet.md` (wallet ops hard-gate). Cite the rule.
 - **Class 5 (genuine bug):** Reproduce it. For a plpgsql/CHECK/RPC failure, run an impact-analysis pass over every reader/writer of the affected column/symbol — the reported bug is often not the only one (a `pending_claim` CHECK gap hid behind a `has_permission` arity bug, both missed by 3 review rounds). Note that plpgsql bodies apply clean and fail at *runtime* — "the migration applied" is not "it works."
@@ -114,6 +115,7 @@ Fan out per **Batch discipline** above: one subagent per card (waves of ~6, or t
 - ❌ Pattern-matching a known failure mode (e.g. "Lovable dropped the merge") without proving it — check the merge-base ancestry first.
 - ❌ Calling a plant "fixed" because the migration applies — plpgsql/CHECK bugs fail at runtime.
 - ❌ Concluding from one reported bug — impact-analyze the surface; a second blocker often hides behind the first.
+- ❌ Treating `schema_migrations`, `pg_proc`, or a service-role query as proof that a browser RPC works — verify the exact consumer contract through PostgREST as `authenticated`.
 - ❌ Moving/closing cards or applying migrations to prod without the user's go-ahead.
 
 ## Board Reference
