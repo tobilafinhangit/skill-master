@@ -66,6 +66,17 @@ class ManifestTests(unittest.TestCase):
         m["result"] = {"candidate_sha": "d" * 40, "tree_sha": "e" * 40}
         self.assertEqual(selective_release.validate_manifest(m), [])
 
+    def test_ready_allows_evidenced_exclusions(self):
+        m = self.base_manifest()
+        m["units"].append({"id": "u2", "kind": "commit", "commit": "d" * 40,
+                            "paths": ["held-back.txt"], "disposition": "exclude",
+                            "reason": "card is still awaiting QA", "evidence": ["card:2"],
+                            "dependencies": []})
+        m["result"] = {"candidate_sha": "e" * 40, "tree_sha": "f" * 40}
+        m["verdict"] = "ready"
+
+        self.assertEqual(selective_release.validate_manifest(m), [])
+
     def test_incomplete_manifest_cannot_be_verified(self):
         m = self.base_manifest()
         m["result"] = {"candidate_sha": "d" * 40, "tree_sha": "e" * 40,
