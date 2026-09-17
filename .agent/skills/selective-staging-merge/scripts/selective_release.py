@@ -116,9 +116,9 @@ def validate_manifest(manifest):
     if not isinstance(readiness, dict):
         errors.append("readiness must be an object")
     elif manifest.get("verdict") == "ready":
-        if any(u.get("disposition") not in {"include", "already_present"}
+        if any(u.get("disposition") == "unknown"
                for u in units if isinstance(u, dict)):
-            errors.append("ready verdict requires every unit to be included or already_present")
+            errors.append("ready verdict requires every unit to have a decided disposition")
         for key in ("migration", "runtime"):
             if readiness.get(key) != "verified":
                 errors.append("ready verdict requires readiness.%s=verified" % key)
