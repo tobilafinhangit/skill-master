@@ -169,13 +169,46 @@ REPOS=(
 #   value = the repo's integration branch to bump on
 #   "none" = PR-gated/prod-via-PR — update the working tree only, NEVER commit/push
 #            (Congrats: bump via feature→verify-deployments→release→main)
-declare -A REPO_INTEGRATION_BRANCH=(
-  ["vetted-congrats-Flow-GENEROUS"]="none"
-  ["backend-restructing"]="backend-verify-deployment"
-  ["vettedai-audition-supabase-version"]="lovable-staging"
-  ["vfacoffeechat"]="main"
-  ["nts-opportunity-hour-digest"]="main"
+#
+# DO NOT use `declare -A` here. macOS ships bash 3.2, where `declare -A` fails and the
+# array silently does not exist — the loop then reads every repo as "no config" and can
+# fall back to the most dangerous default. That is what put a bump on
+# backend-restructing's prod `main` (2026-09-21); only a failed push prevented it
+# shipping. Parallel plain arrays work on both bash 3.2 and 5.x.
+REPO_NAMES=(
+  "vetted-congrats-Flow-GENEROUS"
+  "backend-restructing"
+  "vettedai-audition-supabase-version"
+  "vfacoffeechat"
+  "nts-opportunity-hour-digest"
 )
+REPO_BRANCHES=(
+  "none"
+  "backend-verify-deployment"
+  "lovable-staging"
+  "main"
+  "main"
+)
+
+# Parallel arrays must be the same length, or the mapping is silently wrong.
+if [ "${#REPO_NAMES[@]}" -ne "${#REPO_BRANCHES[@]}" ]; then
+  echo "FATAL: REPO_NAMES (${#REPO_NAMES[@]}) and REPO_BRANCHES (${#REPO_BRANCHES[@]}) differ in length." >&2
+  echo "Fix the config before propagating. Do NOT continue." >&2
+  exit 1
+fi
+
+lookup_branch() {   # $1 = repo basename -> prints configured integration branch, or "" if unknown
+  local want="$1" i=0
+  while [ "$i" -lt "${#REPO_NAMES[@]}" ]; do
+    if [ "${REPO_NAMES[$i]}" = "$want" ]; then
+      echo "${REPO_BRANCHES[$i]}"
+      return 0
+    fi
+    i=$((i + 1))
+  done
+  echo ""   # unknown repo
+  return 1
+}
 
 for repo in "${REPOS[@]}"; do
   name=$(basename "$repo")
@@ -190,7 +223,12 @@ for repo in "${REPOS[@]}"; do
 
   # Persist the pointer ONLY on the repo's configured integration branch. Never on the
   # checked-out branch blindly (feature-branch pollution), never on a PR-gated repo.
-  integration="${REPO_INTEGRATION_BRANCH[$name]:-none}"
+  integration=$(lookup_branch "$name") || {
+    echo "  ⚠️ No integration-branch config for '$name' — REFUSING to commit/push." >&2
+    echo "     Add it to REPO_NAMES/REPO_BRANCHES (and the Consuming Repos table)." >&2
+    echo "     Working tree is updated; pointer left uncommitted." >&2
+    continue
+  }
   branch=$(git rev-parse --abbrev-ref HEAD)
   if git diff --quiet submodules/skill-master; then
     echo "  pointer already current — nothing to commit"
