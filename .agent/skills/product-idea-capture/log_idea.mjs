@@ -8,10 +8,14 @@ import { resolve } from "node:path";
 
 // ---- redaction (kept identical to mcp-gap-capture) ----
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-const PHONE_RE = /\+?\d[\d\s().-]{7,}\d/g;
+// Must look like a phone (international +…, or grouped 3-3-4) so ISO dates and
+// timestamps (2026-09-20 21:26) survive as evidence.
+const PHONE_RE = /(?:\+\d[\d\s().-]{6,}\d|\b\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b)/g;
 const JWT_RE = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 const LONG_SECRET_RE = /\b(?:[A-Za-z0-9+/]{40,}={0,2}|[0-9a-fA-F]{48,})\b/g;
-const SQL_RE = /\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE\s+TABLE|ALTER\s+TABLE|TRUNCATE)\b/i;
+// Context-aware: bare words like "update"/"delete" appear in ordinary product prose,
+// so require real SQL shape to avoid nuking legitimate observations.
+const SQL_RE = /\b(?:select\s+[\s\S]{1,300}?\sfrom\s|insert\s+into\s|update\s+[\w."`\[\]]+\s+set\s|delete\s+from\s|drop\s+table\s|alter\s+table\s|truncate\s+table\s|create\s+table\s)/i;
 const UUID_RE = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
 
 function redactText(s, maxLen = 200) {
