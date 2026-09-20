@@ -116,9 +116,14 @@ For `wiki/log.md`, add one concise line at the top when the session created reus
 [YYYY-MM-DD] [HANDOFF] Topic - summary, artifact path, live cards/PRs, and next action.
 ```
 
-Do not auto-commit from this skill alone. Report that the handoff is written and uncommitted. If the handoff promoted durable `wiki/` pages or changed important project state, recommend a commit and wait for Tobi to ask.
+Commit the handoff. This repo is local-only, so an uncommitted change has no upside — commit in a small batch scoped to this session, and say what you committed.
 
-This deliberately differs from `ingesting-session-work`, which always commits. That skill updates the permanent record, so its output is worth versioning immediately. This skill's artefact is a disposable pickup note, so it waits until Tobi decides the promoted pages are worth a commit.
+```bash
+git add -A <handoff + promoted wiki files>
+git commit -m "<topic> — handoff, state, and next action"
+```
+
+Put the state a future agent can't get from the diff in the commit message: what's parked, why, and the exact next action. Don't commit anything under `raw/` without checking `.gitignore` first.
 
 Completion criterion: a new agent can resume from `NOW.md` without reading the old chat.
 
