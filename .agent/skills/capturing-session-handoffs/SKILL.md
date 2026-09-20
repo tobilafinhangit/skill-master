@@ -1,6 +1,6 @@
 ---
 name: capturing-session-handoffs
-description: Use when Tobi asks to log where a session is, create a pickup note, park a workstream, preserve context for a new session, or avoid losing work across Codex/Claude sessions.
+description: Use when Tobi asks to log where a session is, create a pickup note, park a workstream, preserve context for a new session, or avoid losing work across Codex/Claude sessions. For updating the wiki record with work that is *done* rather than parked, use ingesting-session-work instead.
 version: 1.0.0
 license: MIT
 ---
@@ -8,6 +8,18 @@ license: MIT
 # Capturing Session Handoffs
 
 Create a durable pickup trail so Tobi or another agent can resume work without hunting through old sessions.
+
+## Pick The Right Skill First
+
+The trigger for both skills is the same — a session ending — so check the intent before starting.
+
+> Is the work **parked** (a future session resumes it) or **done** (the record needs updating)?
+
+- **Parked** → this skill. Write the pickup note.
+- **Done** → `ingesting-session-work`. Reconcile the wiki pages the work made stale.
+- **Both** → run `ingesting-session-work` first. Its absence loses history; a missing pickup note only loses momentum.
+
+A pickup note sitting beside a stale wiki page is still a stale wiki page. If the session produced deliverables, changed a person's or org's status, or altered the state of a project, the wiki pages need updating regardless of whether a handoff is also written.
 
 ## When To Use
 
@@ -104,7 +116,9 @@ For `wiki/log.md`, add one concise line at the top when the session created reus
 [YYYY-MM-DD] [HANDOFF] Topic - summary, artifact path, live cards/PRs, and next action.
 ```
 
-Do not auto-commit. Report that the handoff is written and uncommitted. If the handoff promoted durable `wiki/` pages or changed important project state, recommend a commit and wait for Tobi to ask.
+Do not auto-commit from this skill alone. Report that the handoff is written and uncommitted. If the handoff promoted durable `wiki/` pages or changed important project state, recommend a commit and wait for Tobi to ask.
+
+This deliberately differs from `ingesting-session-work`, which always commits. That skill updates the permanent record, so its output is worth versioning immediately. This skill's artefact is a disposable pickup note, so it waits until Tobi decides the promoted pages are worth a commit.
 
 Completion criterion: a new agent can resume from `NOW.md` without reading the old chat.
 
