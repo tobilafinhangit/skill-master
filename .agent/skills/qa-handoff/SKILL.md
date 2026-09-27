@@ -1,13 +1,13 @@
 ---
 name: qa-handoff
 description: Hands reviewed work to QA only after revision, environment, deployment, and publication evidence are verified.
-version: 3.0.0
+version: 3.1.0
 license: MIT
 ---
 
 # QA Handoff
 
-Prepare a reviewed PR or direct push for QA. This skill may prepare the selected staging environment after the checks below. Production preparation requires explicit authorization for the exact action and target; `qa-mirror` is used only when explicitly selected. When `qa-mirror` is explicitly selected, production-backed parity preparation is part of this handoff: eligible reviewed migrations and required Edge Functions must be prepared and verified against production before the handoff can complete. This skill never treats a queued merge, Git push, deploy lock, or nonzero row count as proof of readiness.
+Prepare a reviewed PR or direct push for a tester to verify. **QA handoff complete means ready for QA, not QA passed.** Establish engineering readiness and give the tester a reproducible guide; the tester owns manual acceptance. This skill may prepare the selected staging environment after the checks below. Production preparation requires explicit authorization for the exact action and target; `qa-mirror` is used only when explicitly selected. When `qa-mirror` is explicitly selected, production-backed parity preparation is part of this handoff: eligible reviewed migrations and required Edge Functions must be prepared and verified against production before the handoff can complete. This skill never treats a queued merge, Git push, deploy lock, or nonzero row count as proof of readiness.
 
 Announce: “I’m using the qa-handoff skill to hand this off to QA.”
 
@@ -63,7 +63,7 @@ When the changed or tested frontend consumes a Supabase RPC, treat the RPC as a 
 
 Record each check in the versioned evidence record's `runtime_contracts` section and validate it with `validate_runtime_contract`. Any mismatch, missing smoke result, wrong target ref, stale frontend deployment, or unresolved prior QA finding blocks handoff. Do not replace a failed queue/API check with a passing check against a different RPC.
 
-Every Edge Function deployment names its project ref and uses the repository’s guarded deploy script. Verify frontend deployment for the selected revision; pushing Git is insufficient. A skipped or unverified prerequisite leaves readiness blocked.
+Every Edge Function deployment names its project ref and uses the repository’s guarded deploy script. Verify frontend deployment for the selected revision; pushing Git is insufficient. A skipped or unverified engineering prerequisite leaves readiness blocked.
 
 For an explicitly selected `qa-mirror`, invoke the `sync-qa-mirror` skill against the exact reviewed/merged revision instead of inlining migration/Edge-Function/parity logic here. Its completion state (Synced / Blocked / Partial, with evidence) is the readiness evidence for this section — do not re-derive the production-parity manifest, migration classification, or Edge Function deploy/verify steps independently; they are specified once, in that skill.
 
@@ -73,13 +73,17 @@ For PRs, use `--match-head-commit <verified-head>` and confirm actual merged sta
 
 For `qa-mirror`, sync only when it was selected, and do so by invoking the `sync-qa-mirror` skill (never by hand-merging in this workflow) — it performs the isolated-worktree merge, worktree git-identity setup, `git cherry` drift check with empty-commit disambiguation, and the production-parity manifest/apply steps described in its own SKILL.md. Treat its returned completion state as authoritative: a `Blocked`/`Partial` result from `sync-qa-mirror` (substantive drift, a missing required migration/function, an unresolved conflict) leaves this handoff blocked and must be reported exactly as that skill reported it, not re-summarized or softened.
 
-### 5. Verify behavior
+### 5. Verify handoff readiness
 
-Verify target URL, revision, frontend deployment, API target, Supabase project, schema, functions, configuration, prerequisites, test identity/role, regression checks, and expected behavior. For `qa-mirror`, verify the live production-backed schema/function/config contract as the actual calling role, including RLS/RBAC denial and allow paths where applicable. A production-backed preview is not blanket permission to mutate live customer data; use demo/internal projects and explicitly scoped test fixtures only.
+Verify target URL, revision, frontend deployment, API target, Supabase project, schema, functions, configuration, and the runtime contracts needed to make the selected target testable. Run focused automated or smoke checks for the changed behavior and high-risk regressions when practical. Do not repeat the tester's entire manual journey as a handoff gate. For `qa-mirror`, verify the live production-backed schema/function/config contract as the actual calling role, including RLS/RBAC denial and allow paths where applicable. A production-backed preview is not blanket permission to mutate live customer data; use demo/internal projects and explicitly scoped test fixtures only.
+
+Separate **engineering blockers** from **tester checks**. A missing deployment, failed required check, broken caller-role contract, or unresolved prior finding blocks handoff. Lack of agent access to an SSO-gated UI does not block handoff when the deployed revision and applicable contracts are verified; label the UI behavior *not independently tested* and give the tester the exact role, steps, and expected result. Likewise, if staging intentionally lacks outbound email, record delivery as untested and specify the controlled recipient and mail-capable target the tester must arrange or explicitly select. Never infer a passing result from source inspection or silently switch to `qa-mirror` or production.
 
 ### 6. Publish and mutate card state last
 
-Generate a current testing guide with target URL, revision, prerequisites, identity/role, actions, expected results, regression checks, and failure responses. Reconcile an existing matching publication before posting. Then ensure tester assignment, verify it, move the card to QA last, and read back final card state. Refresh state before every mutation and verify afterward.
+Generate a current testing guide with target URL, revision, tester prerequisites and controlled fixtures, identity/role, actions, expected results, regression checks, failure responses, and an explicit list of checks not independently run. Distinguish a tester prerequisite from an engineering blocker; do not present an unavailable fixture or mail transport as a verified pass. Reconcile an existing matching publication before posting. Then ensure tester assignment, verify it, move the card to QA last, and read back final card state. Refresh state before every mutation and verify afterward.
+
+For Vetted, handoff means assign Elvis and move the card to **QA to be confirmed**. Elvis performs the manual pass from that queue; this skill does not mark his checks passed or advance the card beyond it.
 
 Generated comments identify repository, PR/direct revision, selected target mode, Supabase refs, production-parity actions/evidence, and review cycle. If a write is uncertain, re-fetch before retrying; never blindly toggle assignment/column or repeat a comment POST.
 
@@ -89,6 +93,6 @@ On partial failure, retain completed actions, refresh all state, and resume only
 
 ## Completion rule
 
-Report **QA Handoff Complete** only when all required evidence is present, the selected environment is verified, the current revision is deployed/merged as applicable, the guide is published, assignment and column state are read back, and no blocker remains. For `qa-mirror`, this additionally requires `sync-qa-mirror` to report **Synced** (not Blocked/Partial) for the exact reviewed/merged revision, and every non-additive/deferred dependency it recorded to be proven irrelevant to the tested behavior. Otherwise report **Blocked** or **Partial**, listing completed actions and exact missing evidence. No failed, skipped, queued, stale, or unverified prerequisite can produce completion.
+Report **QA Handoff Complete** only when engineering readiness evidence is present, the selected environment is verified, the current revision is deployed/merged as applicable, the guide is published, assignment and column state are read back, and no engineering blocker remains. This status does not claim manual QA passed: name every remaining tester check and prerequisite in the guide. For `qa-mirror`, this additionally requires `sync-qa-mirror` to report **Synced** (not Blocked/Partial) for the exact reviewed/merged revision, and every non-additive/deferred dependency it recorded to be proven irrelevant to the tested behavior. Otherwise report **Blocked** or **Partial**, listing completed actions and exact missing evidence. No failed, skipped, queued, stale, or unverified engineering prerequisite can produce completion.
 
 See `<skill-master-root>/references/release-workflow-evidence.md` for the shared evidence and failure semantics.
