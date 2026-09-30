@@ -70,13 +70,21 @@ Regression findings require a changed-code anchor. Unchanged code may support an
 
 #### Deploy-lock drift (Vetted only)
 
-If the diff touches `supabase/functions/**` and the repository has `scripts/check-deploy-lock-drift.ts` (Fizzy #1030's convention — verify with `test -f` before relying on it; other repos and older checkouts won't have it), run it scoped to only the functions this PR's diff touches, never the whole repository:
+If the diff touches `supabase/functions/**`, check whether this repository has `scripts/check-deploy-lock-drift.ts` (Fizzy #1030's convention — Congrats and backend-restructing don't have it; running the command without this guard crashes with the same exit code as a real drift finding, which is indistinguishable from a false positive). Derive the touched bare function slugs and run scoped, never unscoped — an unscoped run mixes this PR's own drift with the pre-existing repo-wide backlog and is not useful evidence for a single-PR review:
 
 ```bash
-deno run --allow-read scripts/check-deploy-lock-drift.ts --only=fn_a,fn_b,fn_c
+if [ -f scripts/check-deploy-lock-drift.ts ]; then
+  SLUGS=$(git diff --name-status "$BASE_SHA" "$HEAD_SHA" -- 'supabase/functions/*' \
+    | awk -F'/' '{print $2}' | sort -u | paste -sd, -)
+  if [ -n "$SLUGS" ]; then
+    deno run --allow-read scripts/check-deploy-lock-drift.ts --only="$SLUGS"
+  fi
+fi
 ```
 
-Derive `fn_a,fn_b,fn_c` from `git diff --name-status` paths under `supabase/functions/<slug>/`. A repo-wide (unscoped) run mixes this PR's own drift with the pre-existing backlog and is not useful evidence for this review — always pass `--only`.
+`$SLUGS` must be bare directory names (`fn_foo`), never a full path (`supabase/functions/fn_foo`) — the script treats a non-matching value as "nothing to check" and exits 0, which would misreport as a clean scan rather than a skipped one.
+
+Record any finding as an **optional suggestion** (the skill's existing finding class for non-blocking items) in the evidence record — never a blocking finding, and never silently dropped as "no category fits." Many PRs intentionally defer the actual deploy to a separate post-merge step, so state plainly which touched functions are undeployed-as-of-this-diff and let the merge decision be informed rather than gated.
 
 A finding here means: this PR changed an edge function's source (`index.ts` or an imported `_shared/` file) but did not also update that function's `.deploy.lock` in the same diff — i.e., the change won't ship until someone runs `scripts/deploy-edge-fn.sh` for it after merge. Report each such finding as a flagged (advisory) item, not automatically a blocker: many PRs intentionally defer the deploy to a separate step. State plainly which touched functions are undeployed-as-of-this-diff so the merge decision is informed, and let the PR author/merger confirm whether that's intentional.
 
