@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: Reviews a GitHub PR against its Fizzy ticket, validates regression risk and evidence, and optionally publishes a verdict.
-version: 2.0.2
+version: 2.1.0
 license: MIT
 ---
 
@@ -67,6 +67,18 @@ just to manufacture a local pass. A local fallback does not suppress later GitHu
 results; re-check and reconcile the remote status after merge when applicable.
 
 Regression findings require a changed-code anchor. Unchanged code may support an integration or reachability finding but is not itself a changed-code regression finding.
+
+#### Deploy-lock drift (Vetted only)
+
+If the diff touches `supabase/functions/**` and the repository has `scripts/check-deploy-lock-drift.ts` (Fizzy #1030's convention — verify with `test -f` before relying on it; other repos and older checkouts won't have it), run it scoped to only the functions this PR's diff touches, never the whole repository:
+
+```bash
+deno run --allow-read scripts/check-deploy-lock-drift.ts --only=fn_a,fn_b,fn_c
+```
+
+Derive `fn_a,fn_b,fn_c` from `git diff --name-status` paths under `supabase/functions/<slug>/`. A repo-wide (unscoped) run mixes this PR's own drift with the pre-existing backlog and is not useful evidence for this review — always pass `--only`.
+
+A finding here means: this PR changed an edge function's source (`index.ts` or an imported `_shared/` file) but did not also update that function's `.deploy.lock` in the same diff — i.e., the change won't ship until someone runs `scripts/deploy-edge-fn.sh` for it after merge. Report each such finding as a flagged (advisory) item, not automatically a blocker: many PRs intentionally defer the deploy to a separate step. State plainly which touched functions are undeployed-as-of-this-diff so the merge decision is informed, and let the PR author/merger confirm whether that's intentional.
 
 ### 4. Independent review
 
