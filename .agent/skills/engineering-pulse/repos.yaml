@@ -44,6 +44,14 @@ repos:
     path: /Users/USER/code/repos/vetted-gtm-frontend
     integration_branches: [main]
 
+  # Gaudensia's work also lands here (CDL Copilot — a separate product). Found missing
+  # 2026-10-01 during the September payout run: she had 3 merged PRs here that were
+  # silently "not measured" because this repo was never in the allowlist. Standard
+  # gh-pr repo, personal-owned (tobilafinhangit/cdl-copilot) but has real team PRs.
+  - name: cdl-copilot
+    path: /Users/USER/code/repos/cdl-copilot
+    integration_branches: [main, staging]
+
   # Joy's GTM prospecting tool, now org-owned (Vetted-AI/vetted-gtm, moved from
   # JoyyCLangat/vetted-gtm). Local clone folder is named vetted-gtm-backend (path
   # corrected 2026-10-01 — the old `vetted-gtm` path no longer exists on disk and

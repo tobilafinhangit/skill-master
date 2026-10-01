@@ -1,14 +1,14 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.5.0
+version: 3.6.0
 license: MIT
 metadata:
   author: VettedAI
   category: engineering-management
   tags: [productivity, performance-review, team-health, velocity, delegation, bounty]
   created: 2026-03-11
-  updated: 2026-06-28
+  updated: 2026-10-01
 argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--pre-invoice] [--payout-json] [--draft|--payout]"
 ---
 
@@ -183,6 +183,16 @@ Count PRs with titles matching patterns like:
 - Exact duplicate titles from the same author within 5 minutes
 
 Report these separately as **CI/deploy noise** so they don't inflate feature velocity.
+
+### Step 4b: Promotion-PR exclusion (mandatory, structural — not title matching)
+
+**Exclude any merged PR whose `headRefName` is itself one of the repo's configured `integration_branches`**, regardless of title, author, or repo. These are staging→main (or equivalent) promotion merges — the diff is a duplicate of feature PRs already paid when they landed on the earlier integration branch, not new authored work. Detect this with `gh pr view <n> --json headRefName` (or pull `headRefName` directly in the Step 2 `gh pr list --json` call — it's available there too, no extra API call needed) and compare against `repo.integration_branches`. Do **not** rely on title pattern-matching (`"Staging"`, `"Merge branch"`) as the primary signal — a promotion PR can be titled anything; the head-branch check is the only reliable one.
+
+**Why this is mandatory, not advisory, and why it's called out separately from the title-based CI-noise check above:** this exact bug recurred for three consecutive monthly runs (July, August, September 2026) before being written into this file. July's payout found it, manually excluded it for that one report, and recorded "structural fix shipped to the pulse skill" in `reports/engineering-pulse/2026-07-verification.md` — but the fix was applied only to that report's numbers, never actually committed here. August's run had to re-derive and reapply the exact same exclusion from scratch (visible in `reports/engineering-pulse/2026-08-payout.md`'s "promotion PRs (head branch = integration branch) excluded structurally" note) — again without landing it here. September's run (this one) repeated the mistake a third time, overpaying one engineer by roughly 10,000 KES before a third manual catch. If you are an agent running this skill and you find yourself making this exclusion by hand again, that is the signal this section failed to prevent — fix the detection code path, don't just fix this month's table.
+
+### Step 4c: Revert-pair exclusion (mechanical, not judgment)
+
+A PR titled starting with `Revert "..."` (or whose body contains `reverts #NNN`) and the PR it reverts are both excluded — net value is zero, no judgment call needed. Match the reverted PR by the quoted title substring or the `#NNN` reference in the revert PR's own title/body.
 
 ## Step 5: Generate the Report
 
