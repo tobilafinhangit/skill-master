@@ -35,8 +35,29 @@ boards:
     name: vetted-onboarding
   - id: 03fwhvosyb36wblf0ugta4zf0
     name: qa-automation       # added 2026-05-30 (Fix 6) so Elvis's automation tracking is scanned
-# Deliberately NOT scanned (non-engineering surfaces — revisit if engineers track work there):
-#   Data Science 03ftd0879dj65en1lpvwv5a8v · Growth 03g73ysbcc871rlmp1i1owogb · Finance 03g5m5kujvxhnjyf3eenj2op1
+  - id: 03gggxqayxmjl6pjdleq7nijn
+    name: engineering-operations   # added 2026-10-02: found via /boards.json during a board-drift check
+    # Tobi flagged that Gaudensia's real September work "looks light" because she does
+    # genuine engineering-operations work (scoping, security/privacy audits) that never
+    # produces a PR. This board is where that work actually lives -- it had NEVER been
+    # in this list, not even in the "deliberately not scanned" note below, meaning it
+    # wasn't a considered exclusion, just a gap. Found two full cross-repo security
+    # audits here (14,327 and 9,396 chars) worth 4,000 KES combined under the new
+    # ops-deliverable category, invisible to every prior monthly report.
+  - id: 03gplllzjyj0acg8vy1882dm7
+    name: copilot             # added 2026-10-02, same board-drift check — cdl-copilot's
+    # own Fizzy board (ticket creation/ownership for the repo already in repos.yaml)
+# Not currently scanned (checked 2026-10-02 only for ONE engineer's activity, via
+# /boards.json + a card-listing spot-check — NOT a full verification that no engineer
+# does payable work here; re-check per the board-drift procedure below if anyone's
+# number ever looks suspiciously low again):
+#   Product Operations 03gf6uefbispz8xlnxpxi1ip5 (3 cards, 0 for the engineer checked) ·
+#   Growth Team Board 03gjxd8zdfccug8lq7ddo7p0r (20 cards, 0 for the engineer checked) ·
+#   Revenue Engine 03g73ysbcc871rlmp1i1owogb (0 cards) · VettedAI GTM 03ga0ytgjp086k2scipsjkyeh (0 cards) ·
+#   Data Science 03ftd0879dj65en1lpvwv5a8v · Recruiters Ring 03gvnbc9odykwjoaaqxl0ifi1 ·
+#   Nairobi Talent Social 03ggems4uusw5wieyycvlm1dk · Project Management Demo 03gj2wf7zi5fnjk01qk8wltke
+# NOTE: `product` above (03feaz5rc2t60wkn2rvjkhy6b) is actually named "Feature Grooming |
+# Product Team" in Fizzy's own UI — a stale label, not a stale board; it IS being scanned.
 
 # Card-number scan range. Fizzy card numbers are global across the account and
 # monotonically increasing. Each monthly run should cover the full active range.
@@ -203,6 +224,33 @@ categories:
       - 'webhook timeout'
       - 'system health alerts'
     # No body length filter — prod-triage cards are recognized by title pattern.
+
+  # Substantial written analytical deliverables — security/privacy audits, cross-repo
+  # investigations, strategic scoping writeups — that live as Fizzy comments on an
+  # ENGINEERING-OPERATIONS-style board (not a code repo, no PR, no "manual-qa" keyword
+  # match) but represent real, serious work. Added 2026-10-02 after Gaudensia Akinyi's
+  # two September security audits (#3774 Resume PII Protection, #3775 Support/Eval
+  # Privacy Verification — 14,327 and 9,396 chars of systematic cross-repo findings)
+  # turned out to be sitting on a board (`engineering-operations`) that wasn't even
+  # scanned, and would have been priced at 0 even if it had been (no existing category
+  # fits "a 14K-character security audit"). Tier like code bounty — depth/impact, not
+  # raw character count, same deflation-bias default (when unsure, lower tier wins).
+  ops-deliverable:
+    label: Engineering-Ops Analytical Deliverable
+    surface: manual_tier            # the manager (or a careful agent read) assigns the
+    #                                  tier by reading the actual deliverable — this is
+    #                                  NOT a keyword-detectable category; don't try to
+    #                                  auto-price it off length or keywords alone.
+    tiers:
+      S: {rate_kes: 500,  profile: "Single finding, one repo, light writeup"}
+      M: {rate_kes: 1000, profile: "A few findings, 2-3 repos, moderate depth"}
+      L: {rate_kes: 2000, profile: "Systematic cross-repo audit, executive findings section"}
+      XL: {rate_kes: 3500, profile: "Major strategic deliverable that changes team direction/scope"}
+    boards: [03gggxqayxmjl6pjdleq7nijn]  # engineering-operations; expand if this recurs elsewhere
+    # Process: read the full deliverable, assign the tier conservatively, name the card
+    # number and tier rationale explicitly in the report (same evidence-trail discipline
+    # as the ticket-level bounty tables) — never silently fold this into a generic
+    # "uncategorized ops" bucket, which is how it went unpriced for a full month already.
 
 # Comments that don't match any category but exceed `track_other_min_length` are
 # logged in the team payout report under "uncategorized ops" so the manager can

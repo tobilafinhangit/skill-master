@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.13.0
+version: 3.14.0
 license: MIT
 metadata:
   author: VettedAI
@@ -73,6 +73,20 @@ done   # diff against repos.yaml; anything new → ASK, never auto-add
 Fails safe: an unknown repo is flagged + **not measured**, never silently counted. Personal-owned project work (e.g. Elvis's automation code, currently on a personal repo) is measured via its Fizzy board (the `qa-automation` board in `ops-rates.yaml`), or moved into an org to become visible — never crawled. Known parked/dormant repos to keep ignoring: `Vetted-AI/recruiters-ring` (sole PR by `nzommmo`, off roster), `Generous-Circle/GC-Back` (dormant).
 
 **Known gap, not yet built — cross-repo shared-history dedup.** `Vetted-AI/vetted-gtm-frontend` was seeded from `vetted-gtm` and shares its git history; Joy's July figure double-counted ~5,000 KES of identical commits (same titles/dates: Apify pipeline, scrape-job API, auth layer) appearing in both repos before this was caught by hand (reports/engineering-pulse/2026-07-payout.md Addendum 3, second one). The fix applied then was "add gtm-frontend to repos.yaml so it flows through the pipeline" — but no actual same-title/same-date cross-repo dedup step exists in this skill today; the July fix only removed the symptom (a hand-added number outside the normal pipeline), not the underlying risk (two allowlisted repos sharing git ancestry). Currently dormant (both repos show 0 commits most months) but not actually guarded — if either becomes active again, re-derive this check (compare commit subject+date across any two repos known to share a fork/seed relationship) rather than assuming the July fix covers it.
+
+### Board-allowlist drift check (run every report — the Fizzy-side mirror of the repo check above)
+
+`ops-rates.yaml`'s `boards` list is the same kind of curated allowlist as `repos.yaml`, with the same failure mode: a board that exists and has real engineer activity on it, but was never added, is invisible — not flagged, not "not measured," just silently absent from every report with no error. Unlike the repo check, there is currently **no automated enumeration step** for this — it has to be run manually:
+
+```bash
+curl -s "$FIZZY_BASE/boards.json" -H "Authorization: Bearer $FIZZY_API_TOKEN" -H "User-Agent: VettedAI/1.0" \
+  | python3 -c "import json,sys; [print(b['id'],'|',b['name']) for b in json.load(sys.stdin)]"
+# diff the full list against ops-rates.yaml's `boards:` entries — anything missing → ASK, never silently skip
+```
+
+**Why this is mandatory, not a one-time fix:** September 2026, Tobi's own read of Gaudensia Akinyi's number ("this looks light, she does engineering-operations work") caught what this check would have: the `engineering-operations` board (`03gggxqayxmjl6pjdleq7nijn`) was never in `ops-rates.yaml` — not even in the "deliberately not scanned" exclusion note, meaning it wasn't a considered decision, just a gap nobody noticed because a missing board produces no error, no warning, nothing. It held two substantial September security audits (14,327 and 9,396 characters, 4,000 KES combined under the new `ops-deliverable` category) that had been completely invisible. The `copilot` board (`03gplllzjyj0acg8vy1882dm7`) was found the same way and added alongside it.
+
+**How to apply:** run the enumeration above at least once a quarter, or immediately whenever a manager's own read of someone's output ("this seems low for what I know they did") disagrees with the report — that disagreement is itself the signal, exactly as it was here. A repo-allowlist-style drift check only covers code; it was never going to catch a Fizzy-only workstream like a scoping/audit board. Both allowlists need their own periodic check, not just one.
 
 **Known gap, not yet built — multiple independently-scoped tickets consolidated into one PR.** When stacked-branch/rebase conflicts force several separately-groomed tickets to land as a single merged PR (not one ticket split into many, the *opposite* direction from `split-suspect`), the correct price is the SUM of what each constituent ticket would earn on its own, not one tier based on the merged diff's aggregate size (reports/engineering-pulse/2026-07-payout.md Addendum 9 — Liban's #1464 was 5 independently-scoped tickets #1926-1931, priced as one L-tier 2,000 KES deliverable until retiered per-ticket, +4,500 KES owed). There is no structural detector for this today — the current session's work only built detectors for the inverse case (one ticket inflated into many PRs). A PR whose body or commit history references multiple distinct Fizzy ticket numbers with substantial, non-overlapping diffs per ticket is the signal to watch for and retier manually until a structural check exists.
 
