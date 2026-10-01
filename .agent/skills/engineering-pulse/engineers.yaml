@@ -1,0 +1,165 @@
+# Engineer registry for /engineering-pulse --pre-invoice mode.
+#
+# Each entry produces one per-engineer bounty statement when --pre-invoice runs.
+# Engineers absent from this file are still counted in the team-wide payout report
+# (their PRs and bounty are calculated) but no statement is generated for them —
+# that's how we keep the file authoritative without losing visibility on contributors
+# we haven't onboarded into the invoice flow yet.
+#
+# `reference_initials` must be unique — it goes into the invoice reference code
+# (e.g. GC-ENG-2026-04-DB). If two engineers share initials, append a digit (DB, DB2).
+#
+# `fizzy_user_id` maps to the engineer's user ID inside Fizzy (37signals). Required
+# for ops-contribution detection (pr-review / qa-handoff / ticket-review / manual QA
+# comments authored by them). Discoverable by hitting any card's /comments.json and
+# looking at `creator.id`. Leave blank if unknown — ops detection just won't include
+# that engineer until it's filled in.
+#
+# `display_name` and `currency` populate the statement template. Payment details
+# (M-Pesa number, bank account) are NOT stored here — those live with the engineer
+# and go on their invoice. This file is safe to commit.
+#
+# `active` controls bounty eligibility:
+#   - true  → counted in bounty + statement generated each period
+#   - false → PRs still counted in team-wide stats, but no bounty assigned and no
+#             statement generated. Use when the engineer is on the team but not
+#             yet onboarded onto the bounty system, or has left.
+#
+# `bounty_start_date` is the date the engineer's bounty agreement took effect.
+# The pulse skill filters PRs / comments / card creations to (>= start_date)
+# when computing that engineer's totals. If the field is missing or null, no
+# filter is applied (treat as "always eligible" — usual case for long-tenured
+# folks). YYYY-MM-DD format. Inclusive of the start date itself.
+#
+# `employment` declares how the engineer is paid:
+#   - bounty   → bounty + ops figure is PAYABLE (behaves as before; the default
+#                when the field is absent)
+#   - retainer → engineer is on a fixed monthly retainer that does NOT stack with
+#                bounty. Their computed bounty + ops renders as "Shadow-bounty
+#                (not paid — retainer)" and is EXCLUDED from team total payable.
+#                Shadow-bounty is a FLOOR, not a ceiling — infra/security/
+#                investigation work is systematically under-measured by line/task
+#                proxies, so a low shadow figure is NOT a verdict. See the
+#                "Capacity & Invisible Work" section + the per-engineer value note.
+# `retainer_kes_month` — the monthly retainer amount (null/omit for bounty engineers).
+# `retainer_role` — engineering | qa.
+#   - engineering → measured via PRs + ops (rendered as shadow-bounty).
+#   - qa          → suppress the PR/shadow-bounty entirely; measured on QA
+#                   throughput (manual-QA sessions + tickets tested) via the
+#                   structural proxies in "Capacity & Invisible Work". A QA
+#                   retainer with near-zero QA throughput in the window is a flag
+#                   to surface, not a number to compute.
+# `value_note` (retainer engineers only, optional) — a 1–2 line free-text note the
+#   manager fills monthly, rendered verbatim into the Management Insights value-note
+#   field. This is the only judgement of an infra/security engineer's value that
+#   should carry weight — the shadow-bounty is a FLOOR, never a ceiling. Leave blank
+#   and the report prints a placeholder prompting the manager to fill it.
+
+founder: tobilafinhangit  # excluded from bounty calculations regardless of presence below
+
+engineers:
+  - github: DBusuru
+    display_name: David Busuru
+    reference_initials: DB
+    currency: KES
+    fizzy_user_id: 03fe9amq160g8mbw0azsjh7li
+    bounty_start_date: 2026-03-14
+    active: true
+
+  - github: Liban-hassan-noor
+    display_name: Liban Hassan
+    reference_initials: LH
+    currency: KES
+    fizzy_user_id: 03feortwqikzqup9phpz6j31k  # discovered 2026-07-01 via /users.json (libanhassannur23@gmail.com)
+    bounty_start_date: 2026-03-14
+    active: true
+
+  - github: jush34
+    display_name: Theophilus Juma
+    reference_initials: TJ
+    currency: KES
+    fizzy_user_id: 03f5cmyeoj2xeixy4tkav7kc1
+    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
+    retainer_kes_month: 30000
+    retainer_role: engineering
+    active: true
+
+  - github: oussama22x
+    display_name: Oussama Elboukhari
+    reference_initials: OE
+    currency: KES
+    fizzy_user_id: 03f5clrwhb0jpi7h8yxhzfc2i
+    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
+    retainer_kes_month: 30000
+    retainer_role: engineering
+    active: true
+
+  - github: adiela
+    display_name: Adiela Abishua
+    reference_initials: AA
+    currency: KES
+    fizzy_user_id: 03fhh9itsfhjh4lvzqrhk9kps
+    active: true
+
+  - github: daniella-mu
+    display_name: Daniella Mutai
+    reference_initials: DM
+    currency: KES
+    fizzy_user_id: 03fma4gpioiosyf3g9w409r8t
+    bounty_start_date: 2026-04-14
+    employment: bounty              # do NOT flip — conversion candidate, not yet converted.
+    # Shadow-bounty ~29.6k (May) ≈ the 30k retainer line → auto-flagged as a
+    # conversion candidate in Management Insights. Flipping her to retainer is a
+    # Tobi decision via the §4 three-gate conversion checklist, tracked separately.
+    active: true
+
+  - github: Kariuki11
+    display_name: Kennedy Kariuki
+    reference_initials: KK
+    currency: KES
+    fizzy_user_id: 03fcio1nm0p43cs9ykufgphaf  # discovered 2026-05-30 by name match; verified.
+    # NOTE: do NOT confuse with Elvis's id 03fcio1h8spstjpkc82vciugk — similar
+    # prefix, different person.
+    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
+    retainer_kes_month: 30000
+    retainer_role: engineering
+    active: true
+
+  - github: Much1r1  # Elvis. Real GitHub login (was wrongly 'Elvis'). Owns Much1r1/Vetted_automation.
+    display_name: Elvis Muchiri
+    reference_initials: EL
+    currency: KES
+    git_email: muchirielvis375@gmail.com   # git-log author-mapping key (commit %ae)
+    git_name: Much1r1                       # also commits as "Elvis Muchiri" (same email → maps)
+    fizzy_user_id: 03fcio1h8spstjpkc82vciugk
+    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
+    retainer_kes_month: 30000
+    retainer_role: qa               # qa → not bounty-payable. Historically shadow-bounty was
+    #                                 suppressed, but Tobi (2026-07-01) wants retainer CODE output
+    #                                 tracked for ROI: his automation work in vetted-automation is
+    #                                 now surfaced as shadow-bounty (ROI floor), ALONGSIDE his QA
+    #                                 throughput (manual-QA sessions + tickets tested). Not paid.
+    active: true
+
+  # Bounty-eligible from 2026-06-08. Works in vetted-gtm (source: git-log) + audition.
+  - github: JoyyCLangat
+    display_name: Joy Langat
+    reference_initials: JL
+    currency: KES
+    fizzy_user_id: 03frs0fbjk4fhn041ylmxnlza  # "Joy Chepkoech" in Fizzy
+    bounty_start_date: 2026-06-08
+    active: true
+
+  # Bounty-eligible from 2026-06-08. Builds the QA-automation tool in wizzfi1/manual_qa
+  # (repos.yaml `manual-qa`, source: git-log). Commits are authored "Wisdom Shaibu"
+  # <shaibuwisdom@gmail.com>, so git-log attribution matches on `git_email` (his GitHub
+  # login `wizzfi1` won't appear in `%an`). Fizzy handle: wizzfi1.
+  - github: wizzfi1  # confirmed 2026-07-01: owner of wizzfi1/manual_qa (was wrongly guessed `wisdom-shaibu`)
+    display_name: Wisdom Shaibu
+    reference_initials: WS
+    currency: KES
+    git_email: shaibuwisdom@gmail.com   # git-log author-mapping key (commit %ae)
+    git_name: Wisdom Shaibu             # fallback match on %an
+    fizzy_user_id: 03frph2uy8euyldya0xby1av7  # discovered 2026-07-01 via /users.json (Wisdom Ojochegbe Shaibu)
+    bounty_start_date: 2026-06-08
+    active: true
