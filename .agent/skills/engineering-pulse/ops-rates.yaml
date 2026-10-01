@@ -103,8 +103,50 @@ categories:
       - 'qa report'           # added 2026-07-01: Wisdom's session formats (dash-agnostic)
       - 'qa update'
       - 'qa reply'
-      - 'manual ui/ux testing'
     min_length: 400
+    # NOTE: 'manual ui/ux testing' deliberately does NOT belong in this list —
+    # see the separate `uiux-testing` category below. It used to be in this list,
+    # which silently double-priced a cheaper category at the deeper 200 KES rate
+    # for at least one full month (found + fixed 2026-10-02, see uiux-testing note).
+
+  # Lighter "assigned manual pass" QA category — distinct from manual-qa above.
+  # Policy (Tobi, 2026-08-01, reports/engineering-pulse/2026-07-payout.md
+  # Addendum 6/7): an "assigned manual QA/UI-UX pass" (e.g. filling in for a down
+  # automation tool, or a lighter sign-off/sweep) pays HALF of a deep manual-qa
+  # session — 100 KES vs 200 — "at observed ~15 min/card throughput, 100 ≈ double
+  # an equivalent coding hour; 200 would have been ~triple." Created specifically
+  # because Wisdom's and Liban's real manual UI/UX sweeps were either missed
+  # entirely (format matched no detector) or, worse, matched the manual-qa
+  # keyword list and got paid at 2x the correct rate.
+  #
+  # CRITICAL companion rule, same addendum, NOT a detector concern — a judgment
+  # call every run must apply: "when the tool works, its runs pay nothing per-card
+  # (engine bounty covers them); assigned manual passes pay the uiux rate." A
+  # comment that is the automation tool's own unsupervised output (explicit
+  # "Automated QA" label, or strong circumstantial evidence — e.g. multiple
+  # distinct substantive reports posted mere seconds apart, a known no-human-could-
+  # do-that tell) pays ZERO, not 100 and not 200 — that output is already
+  # compensated via the engineer's code bounty on the automation repo (see the
+  # manual-qa / vetted-automation `bounty_multiplier: 0.5` note in repos.yaml,
+  # which exists for exactly this double-pay risk). Only a genuinely human-
+  # performed assigned pass pays the 100 KES rate here.
+  uiux-testing:
+    rate_kes: 100
+    rate_effective_from: 2026-08-01
+    label: Manual UI/UX Testing Pass
+    detect_any:
+      - 'qa sign-off'
+      - 'manual verification'   # added 2026-08-01: Liban's #700 etc. heading format (Addendum 7)
+      - 'manual ui/ux testing'
+      - 'ui testing sign-off'
+    min_length: 200
+    # This category WAS live in July/August (see reports/engineering-pulse/2026-07-payout.md
+    # Addendum 6/7 and reports/payouts/2026-08/2026-08_wizzfi1.md) but was missing from
+    # this file entirely by September 2026 — restored 2026-10-02 after the user's own
+    # memory flagged "something was off with the version of the skill we had" and this
+    # was found in the same systematic audit that recovered the bounty_multiplier fix.
+    # The skill's v3.5-restoration (recovering a dangling orphan commit, this same cycle)
+    # evidently restored a version predating this category's creation.
 
   # QA verdict detection (Fix 3, 2026-05-30). This is a CAPACITY signal (tickets
   # tested), NOT a paid category — surfaced in the "Capacity & Invisible Work"
