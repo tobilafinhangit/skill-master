@@ -43,8 +43,9 @@ boards:
 # Adjust `high` periodically as the team accumulates more cards.
 card_scan_range:
   low: 100
-  high: 1750   # bumped 2026-07-01: was 1000 and silently missed June cards 1001-1728
-  #            (max card was 1728). Under-counted EVERYONE's June ops. Re-check each run.
+  high: 4300   # bumped 2026-10-01 for September payout: was 1750 (set 2026-07-01), silently
+  #            missed every card from ~1751 onward for at least one prior report cycle.
+  #            Binary-searched max existing card ≈4266 via GET /cards/{n}.json; re-check each run.
 
 categories:
   pr-review:

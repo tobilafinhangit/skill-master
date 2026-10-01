@@ -120,9 +120,8 @@ engineers:
     fizzy_user_id: 03fcio1nm0p43cs9ykufgphaf  # discovered 2026-05-30 by name match; verified.
     # NOTE: do NOT confuse with Elvis's id 03fcio1h8spstjpkc82vciugk — similar
     # prefix, different person.
-    employment: retainer            # CONFIRMED retainer (Tobi, 2026-05-30)
-    retainer_kes_month: 30000
-    retainer_role: engineering
+    employment: bounty              # FLIPPED to bounty (Tobi, 2026-10-01, September payout roster
+    #                                  call) — was retainer (CONFIRMED retainer, Tobi 2026-05-30).
     active: true
 
   - github: Much1r1  # Elvis. Real GitHub login (was wrongly 'Elvis'). Owns Much1r1/Vetted_automation.
@@ -162,4 +161,15 @@ engineers:
     git_name: Wisdom Shaibu             # fallback match on %an
     fizzy_user_id: 03frph2uy8euyldya0xby1av7  # discovered 2026-07-01 via /users.json (Wisdom Ojochegbe Shaibu)
     bounty_start_date: 2026-06-08
+    active: true
+
+  # Bounty-eligible from 2026-08-01 (confirmed by August payout report). Works in
+  # audition + congrats (standard gh-pr repos, no dedicated repo entry needed).
+  - github: Firefly-minty
+    display_name: Gaudensia Akinyi
+    reference_initials: GA
+    currency: KES
+    fizzy_user_id: 03g5enq0fmlpoyghtitv3u3vy  # discovered 2026-10-01 via /users.json (gaudeaki@gmail.com)
+    bounty_start_date: 2026-08-01
+    employment: bounty
     active: true
