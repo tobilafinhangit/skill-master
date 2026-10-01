@@ -37,11 +37,21 @@ repos:
     path: /Users/USER/code/repos/vetted-engineering-onboarding
     integration_branches: [main, staging]
 
-  # Joy's GTM prospecting tool. Personal repo (JoyyCLangat/vetted-gtm), no GitHub PRs —
-  # work is squash-pushed straight to main referencing Fizzy cards (#1329–#1336). Counted
+  # GTM prospecting tool frontend (Vetted-AI/vetted-gtm-frontend). Standard gh-pr repo,
+  # feature branches merge to main via GitHub PRs. In scope from September 2026 payout
+  # (Tobi, 2026-10-01 roster call) — was an August-report-only supplement before this.
+  - name: gtm-frontend
+    path: /Users/USER/code/repos/vetted-gtm-frontend
+    integration_branches: [main]
+
+  # Joy's GTM prospecting tool, now org-owned (Vetted-AI/vetted-gtm, moved from
+  # JoyyCLangat/vetted-gtm). Local clone folder is named vetted-gtm-backend (path
+  # corrected 2026-10-01 — the old `vetted-gtm` path no longer exists on disk and
+  # was silently "not measured" for at least one prior report cycle). No GitHub
+  # PRs — work is squash-pushed straight to main referencing Fizzy cards. Counted
   # via git log, not `gh pr list` (which returns []). See `source: git-log` above.
   - name: gtm
-    path: /Users/USER/code/repos/vetted-gtm
+    path: /Users/USER/code/repos/vetted-gtm-backend
     integration_branches: [main]
     source: git-log
 
