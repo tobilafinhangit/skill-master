@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.7.0
+version: 3.8.0
 license: MIT
 metadata:
   author: VettedAI
@@ -206,6 +206,18 @@ Report these separately as **CI/deploy noise** so they don't inflate feature vel
 ### Step 4c: Revert-pair exclusion (mechanical, not judgment)
 
 A PR titled starting with `Revert "..."` (or whose body contains `reverts #NNN`) and the PR it reverts are both excluded — net value is zero, no judgment call needed. Match the reverted PR by the quoted title substring or the `#NNN` reference in the revert PR's own title/body.
+
+### Step 4d: Stacked-branch duplicate-diff detection (for above-S-tier PRs, same author)
+
+**This is a different bug than `split-suspect`.** `split-suspect` catches 3+ S-tier PRs on the *same* ticket; this catches two or more *different* tickets from the same author where the later PR's branch was cut from the earlier PR's branch instead of from the integration branch — so the later PR's reported diff re-includes the earlier ticket's files, inflating its tier.
+
+**Detection:** for any author with 2+ M/L/XL-tier PRs merged within a few days of each other, fetch `gh pr view <n> --json files` for each and compare file paths across the pair. If a filename appears in both PRs with the **exact same (or near-identical) additions/deletions count**, that content was already paid for under the earlier PR — it is not new work in the later one.
+
+**How to correct:** for each duplicated file, subtract its lines from the later PR's total and drop it from the later PR's file count (unless the line count differs meaningfully, in which case use only the delta as the incremental contribution). Re-tier the later PR on the resulting net-new files/lines. If the recomputed tier is lower, use the lower one — this is a real downward correction, not advisory.
+
+**Why this exists:** September 2026 payout, Liban Hassan's resume-privacy epic (tickets A1→A2→A3, 3 separate Fizzy tickets) and activation-queue epic (tickets #3850→#3851). Each later PR's branch had been cut from the previous PR's branch rather than from `lovable-staging`, so GitHub's diff for A2 and A3 re-included A1's (and A1+A2's) files byte-for-byte — a single 803-line migration file was counted in all three PRs. Priced at face value, A2 and A3 both landed at L-tier (2,000 KES each); after removing the duplicated files, both drop to M-tier (1,000 KES each). #3851 "activation queue a11y" looked like M-tier (1,000 KES) but its only genuinely new content, after removing files byte-identical to #3850, was ~40 lines — S-tier (500 KES). Net correction: −2,500 KES on one engineer's month, caught only because the user's own skepticism ("I don't remember assigning him that much") prompted a file-level re-check — this detection should run by default, not only on manual challenge.
+
+**Scope this check to pairs that are plausible candidates** (above S-tier, same author, merged within roughly the same week, especially PRs whose branch names look sequential — `A1/...`, `A2/...`, `3850/...`, `3851/...`) rather than diffing every PR against every other PR for every author — that's O(n²) `gh pr view` calls for no benefit on PRs that obviously don't share lineage.
 
 ## Step 5: Generate the Report
 
