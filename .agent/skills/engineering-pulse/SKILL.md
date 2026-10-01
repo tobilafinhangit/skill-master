@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.10.0
+version: 3.11.0
 license: MIT
 metadata:
   author: VettedAI
@@ -262,6 +262,10 @@ First, show the **ticket-level breakdown per author** (Step 3a groups): a table 
 All other flags are advisory — the manager decides during review.
 
 **Net** = Gross minus revert-pair deductions.
+
+**Per-repo `bounty_multiplier` (check `repos.yaml` for every repo before finalizing any author's gross — mandatory, not optional).** Some repos carry an explicit `bounty_multiplier` in `repos.yaml` (currently: `manual-qa` and `vetted-automation`, both 0.5 — the "automation-mandate" rate, Tobi 2026-07, Addendum 4 in `reports/engineering-pulse/2026-07-payout.md`: a repo whose entire purpose is to automate QA that's *also* paid in full as manual-QA ops would double-pay for one outcome at full rate on both sides). Apply the multiplier to that repo's tier value **after** ticket-grouping/split-suspect collapse, and disclose it on the engineer's statement with the rationale — never a silent haircut.
+
+**Why this is mandatory, not a one-time calculation:** this exact multiplier was correctly applied by hand in the July and August reports — it just never made it into `repos.yaml` as an actual setting, so it only existed as prose in two old report files. September's automated run missed it entirely, and a same-session manual re-verification of the same engineer's numbers *also* missed it, because nothing in the skill's own files said to apply it — it took the user's own memory of the July decision to catch the gap a third time. Any repo-specific rate adjustment must live in `repos.yaml` (or `engineers.yaml`) as a real field the skill reads, never only in a report's prose, or it silently stops being applied the moment nobody remembers to type it in by hand.
 
 **Retainer / shadow-bounty split (Fix 3 + Fix 5).** Before totaling:
 - For each `employment: retainer` engineer, the bounty + ops Net renders as `Shadow-bounty (not paid — retainer): X KES` with the footnote: _"Floor, not ceiling. Infra/security/investigation work is under-measured by line/task proxies — see the Capacity & Invisible Work section and value note."_ This is **internal-only** — never include it in an engineer-facing statement.

@@ -67,17 +67,34 @@ repos:
   # direct-push to `master`. Commits authored "Wisdom Shaibu" <shaibuwisdom@gmail.com>,
   # mapped to engineer `wizzfi1` via its `git_email` in engineers.yaml. This is the repo
   # that lets us gauge Wisdom's code bounty (Fizzy #1344 lineage).
+  #
+  # bounty_multiplier: 0.5 — the "automation-mandate" rate (Tobi, decided 2026-07,
+  # see reports/engineering-pulse/2026-07-payout.md Addendum 4). This repo's entire
+  # purpose is to automate the same QA that's separately paid in full as manual-QA
+  # ops (ops-rates.yaml) — paying full tier value on BOTH the code that builds the
+  # automation AND the ops category it automates pays twice for one outcome. Applied
+  # correctly by hand in the July and August reports, then silently dropped because
+  # it only ever lived in report prose, never in this config file — September's run
+  # (and a same-session re-check) both missed it until Tobi flagged it from memory.
+  # Apply AFTER tiering/clustering: final_tier_value × 0.5. Disclose on the engineer's
+  # statement with this rationale — never a silent haircut.
   - name: manual-qa
     path: /Users/USER/code/repos/manual_qa
     integration_branches: [master]
     source: git-log
+    bounty_multiplier: 0.5
 
   # Elvis's QA-automation repo (Much1r1/Vetted_automation). Mixed workflow (some PRs,
   # mostly direct-push to main) + github-actions[bot] commits — git-log captures his full
   # output for ROI tracking; the bot commits map to no engineer and are dropped. Commits
   # authored "Much1r1"/"Elvis Muchiri" <muchirielvis375@gmail.com>, mapped via git_email.
   # Elvis is a retainer (QA) — this measures output for performance/ROI, NOT bounty payout.
+  #
+  # bounty_multiplier: 0.5 — same automation-mandate rationale as manual-qa above
+  # (Tobi, 2026-07 Addendum 4 explicitly names both repos). Unpaid either way (shadow-
+  # bounty), but the ROI read should still reflect the discounted rate, not face value.
   - name: vetted-automation
     path: /Users/USER/code/repos/Vetted_automation
     integration_branches: [main]
     source: git-log
+    bounty_multiplier: 0.5
