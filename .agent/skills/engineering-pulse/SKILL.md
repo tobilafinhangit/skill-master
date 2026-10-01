@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.8.0
+version: 3.9.0
 license: MIT
 metadata:
   author: VettedAI
@@ -163,9 +163,10 @@ Examples:
 ### Deductions: what does NOT count
 
 Before classification, subtract from the line count:
-- **Generated/vendor files:** `package-lock.json`, `yarn.lock`, `deno.lock`, `*.generated.*`, `*.min.js`, `src/integrations/supabase/types.ts`
+- **Generated/vendor files:** `package-lock.json`, `yarn.lock`, `deno.lock`, `*.generated.*`, `*.min.js`, `src/integrations/supabase/types.ts`, `public/sitemap.xml` (build-generated — see [.claude/rules/worktree-cleanup.md](../../../../.claude/rules/worktree-cleanup.md)'s disposable-dirt list, same category), any vendored library under a `vendor/` path
 - **Lockfile-only PRs:** If the only changed file is a lockfile, classify as **noise** (not S)
 - Migrations (`.sql` files) ARE counted — they represent real schema work
+- **Always apply this deduction before tiering, not just when a PR "looks big."** September 2026 payout, Kennedy Kariuki's #2872 (a one-line ESLint rule enable): `gh pr view --json files` showed 4 files / 1,771 lines, and was priced M-tier (1,000 KES) off that raw total — but 1,761 of those 1,771 lines were a `package-lock.json` diff from an unrelated dependency bump riding in the same PR. Net-new content was 10 lines across 3 real files — S-tier (500 KES). Same root cause for Liban Hassan's #4009 (research SEO): a `public/sitemap.xml` build artifact contributed 52 of a 312-line total, pushing the PR from S-tier (260 lines) to M-tier (312 lines) — a single generated file crossing a tier boundary. **Fetch `--json files` and apply every deduction in this list for every PR you tier, not only the ones that already look abnormally large** — a generated file can flip a tier boundary even in an otherwise-small PR.
 
 **Note:** The copy-paste deduction (>60% identical lines) is only applied when full diffs are available. If `gh pr diff` was not fetched for a PR, skip this check and note it in the report.
 
@@ -218,6 +219,8 @@ A PR titled starting with `Revert "..."` (or whose body contains `reverts #NNN`)
 **Why this exists:** September 2026 payout, Liban Hassan's resume-privacy epic (tickets A1→A2→A3, 3 separate Fizzy tickets) and activation-queue epic (tickets #3850→#3851). Each later PR's branch had been cut from the previous PR's branch rather than from `lovable-staging`, so GitHub's diff for A2 and A3 re-included A1's (and A1+A2's) files byte-for-byte — a single 803-line migration file was counted in all three PRs. Priced at face value, A2 and A3 both landed at L-tier (2,000 KES each); after removing the duplicated files, both drop to M-tier (1,000 KES each). #3851 "activation queue a11y" looked like M-tier (1,000 KES) but its only genuinely new content, after removing files byte-identical to #3850, was ~40 lines — S-tier (500 KES). Net correction: −2,500 KES on one engineer's month, caught only because the user's own skepticism ("I don't remember assigning him that much") prompted a file-level re-check — this detection should run by default, not only on manual challenge.
 
 **Scope this check to pairs that are plausible candidates** (above S-tier, same author, merged within roughly the same week, especially PRs whose branch names look sequential — `A1/...`, `A2/...`, `3850/...`, `3851/...`) rather than diffing every PR against every other PR for every author — that's O(n²) `gh pr view` calls for no benefit on PRs that obviously don't share lineage.
+
+**Run this check against EVERY repo the author touched that month, not just the repo where the first duplicate turned up.** The September 2026 run that discovered this bug initially found it only in one repo (`vettedai-audition-supabase-version`) and reported the fix as complete — a second, broader pass across the *same author's other repo that same month* (`nts-event-platform-supabase`) found an even larger instance: ticket #3683 "homepage programme states" was byte-for-byte identical across 11 files to the immediately-prior ticket #3682 (confirmed via `createdAt`: #3683's branch was opened before #3682 merged), reporting as L-tier (2,000 KES) when its genuine net-new content — two files the other ticket didn't touch — was S-tier (500 KES). A −1,500 KES correction that would have been missed entirely if the check had stopped after the first repo it was found in. One stacked-branch finding is a reason to broaden the search, not a reason to consider the author's other repos clean.
 
 ## Step 5: Generate the Report
 
