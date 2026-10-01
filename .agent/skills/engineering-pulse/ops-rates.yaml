@@ -134,6 +134,16 @@ categories:
     rate_kes: 100
     rate_effective_from: 2026-08-01
     label: Manual UI/UX Testing Pass
+    # AUTOMATION ROYALTY OVERRIDE (Tobi, 2026-10-02): if an engineer has
+    # `automation_royalty_kes_month` set in engineers.yaml, their matches on THIS
+    # category that are the tool's own self-labeled output (e.g. the exact "qa
+    # sign-off" / "automated qa" keywords below) are excluded from per-card pricing
+    # here entirely — paid instead as that flat monthly royalty, a subscription fee
+    # for the tool existing, not labor pay per card. Only matches with NO automation
+    # self-label (plain unlabeled prose, or an explicit human/in-app-browser marker)
+    # still price per-card at the rate below. See Wisdom Shaibu's engineers.yaml entry
+    # for the first instance of this — his manual_qa tool runs a routine UI/UX pass
+    # that self-labels "QA sign-off"/"Manual UI/UX", which is what triggered this rule.
     detect_any:
       - 'qa sign-off'
       - 'manual verification'   # added 2026-08-01: Liban's #700 etc. heading format (Addendum 7)

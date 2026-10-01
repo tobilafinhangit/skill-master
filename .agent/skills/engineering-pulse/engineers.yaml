@@ -162,6 +162,19 @@ engineers:
     fizzy_user_id: 03frph2uy8euyldya0xby1av7  # discovered 2026-07-01 via /users.json (Wisdom Ojochegbe Shaibu)
     bounty_start_date: 2026-06-08
     active: true
+    # Automation royalty (Tobi, 2026-10-02): a flat 2,000 KES/month "subscription fee"
+    # for his manual_qa tool's own routine automated pass (self-labeled in Fizzy as
+    # "QA sign-off" / "Manual UI/UX" / "Automated QA") — REPLACES per-card uiux-testing
+    # pricing for anything the tool runs on its own. Decoupled from card count on purpose:
+    # a per-card rate (even a cheap one) still prices the tool like human labor, and
+    # the original 100 KES uiux rate was explicitly sized for ~15 min of a PERSON's time
+    # per card — meaningless once no person is spending that time. A flat fee is "pay for
+    # the capability existing," like a SaaS subscription, not "pay per use." Does NOT
+    # replace his code bounty (already 0.5x via repos.yaml manual-qa bounty_multiplier)
+    # or per-card pay for cards he personally, manually tests (see uiux-testing /
+    # manual-qa ops-rates.yaml categories) — only his OWN self-labeled tool-run output.
+    automation_royalty_kes_month: 2000
+    automation_royalty_repo: manual-qa   # which repos.yaml git-log repo this covers
 
   # Bounty-eligible from 2026-08-01 (confirmed by August payout report). Works in
   # audition + congrats (standard gh-pr repos, no dedicated repo entry needed).
