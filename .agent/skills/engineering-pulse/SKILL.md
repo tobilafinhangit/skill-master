@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.9.0
+version: 3.10.0
 license: MIT
 metadata:
   author: VettedAI
@@ -266,6 +266,7 @@ All other flags are advisory — the manager decides during review.
 **Retainer / shadow-bounty split (Fix 3 + Fix 5).** Before totaling:
 - For each `employment: retainer` engineer, the bounty + ops Net renders as `Shadow-bounty (not paid — retainer): X KES` with the footnote: _"Floor, not ceiling. Infra/security/investigation work is under-measured by line/task proxies — see the Capacity & Invisible Work section and value note."_ This is **internal-only** — never include it in an engineer-facing statement.
 - `retainer_role: qa` engineers: **still surface their code output** as shadow-bounty in the Retainer ROI table (§5f-ter) — a QA person building automation tooling (Elvis in `vetted-automation`) is real output worth tracking (Tobi, 2026-07-01, superseding the earlier "suppress entirely"). But their shadow figure **understates a QA role** — always show it *alongside* their QA throughput (manual-QA sessions + tickets tested, §5g-bis), never as their standalone value.
+- **Shadow-bounty retainer repos need the SAME re-derivation discipline as bounty repos, every run — "not paid" is not "not worth checking."** September 2026: Elvis's `vetted-automation` code output had been reported as 1 commit / 500 KES for at least four consecutive monthly reports, carried forward unchanged each time because it's unpaid and nobody re-ran the git-log pull. A direct re-check (fetch + full `git log --author` count) found **34 real commits that month** — the true figure, even after collapsing same-day same-topic clusters conservatively, was closer to 8,500 KES of code output alone. The ROI read against his retainer had been silently wrong for months. Re-run Step 2b's `git fetch` + full commit pull for every `source: git-log` repo on **every** run, shadow-bounty or bounty — a stale number that's merely "internal" still misinforms a real decision if anyone ever looks at it.
 - **Team total payable EXCLUDES all shadow-bounty.** Compute "Team total payable" = sum of Net for `employment: bounty` engineers only. Show the shadow-bounty total separately as a clearly-labeled non-payable line, e.g. `Shadow-bounty (retained engineers, not paid): Y KES`.
 
 ### 5f-ter. Retainer Output — ROI signal (standard monthly section)
