@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.6.0
+version: 3.7.0
 license: MIT
 metadata:
   author: VettedAI
@@ -116,9 +116,14 @@ This enables revert detection, file-path analysis, and review tracking.
 
 Some repos have `source: git-log` in `repos.yaml` — they have **no GitHub PRs** (`gh pr list` returns `[]`) because work is squash-pushed straight to the integration branch (e.g. Joy's `vetted-gtm`, personal repo, direct-to-`main`). For these repos, **do not** call `gh pr list`; instead derive one **PR-equivalent per non-merge commit** on the integration branch:
 
+**Fetch before you log — mandatory, every run.** A local clone of a `git-log` repo is not kept current by anything else in this skill or in normal workflow — unlike `gh-pr` repos (where GitHub's API is always the live source of truth), these repos are read from **whatever commit the local clone happens to be sitting at**. A stale clone doesn't error — `git log` against it just silently returns fewer commits, with no signal that anything is wrong. Always run `git -C <repo.path> fetch origin <integration_branch> --quiet` immediately before the `git log` pull below, and read from `origin/<integration_branch>`, not the local branch ref.
+
+**Why this is mandatory, not a nice-to-have:** September 2026 payout run, Wisdom Shaibu's `manual-qa` repo. The local clone was **213 commits behind** `origin/master` at the time `git log` ran, with no fetch step in between — it read master as the clone understood it, which was weeks stale. This made his September code output look like 1 commit / 500 KES, when his real output (confirmed after `git fetch` + `git log origin/master`) was **30 commits across 8 tickets, 8,000 KES** — a 16x undercount. The repo isn't being watched or polled by anything; a local clone that was fresh when first set up just quietly rots.
+
 ```bash
-# One record per commit: header line then a numstat block per commit
-git -C <repo.path> log <integration_branch> --no-merges --since=<since> --until=<until> \
+git -C <repo.path> fetch origin <integration_branch> --quiet
+# One record per commit: header line then a numstat block per commit — read from origin/<branch>
+git -C <repo.path> log origin/<integration_branch> --no-merges --since=<since> --until=<until> \
   --numstat --date=iso-strict --format='__COMMIT__%H|%an|%ae|%cI|%s'
 ```
 
@@ -164,11 +169,17 @@ Before classification, subtract from the line count:
 
 **Note:** The copy-paste deduction (>60% identical lines) is only applied when full diffs are available. If `gh pr diff` was not fetched for a PR, skip this check and note it in the report.
 
+### Step 3a: Group by ticket, not by PR (mandatory — the real unit of payable work)
+
+**A PR is not the unit of work. A Fizzy ticket is.** Before producing any bounty table, extract a ticket number from every remaining (non-promotion, non-revert) PR's title (pattern `#NNNN`) or branch name (pattern `NNNN/slug` / containing `NNNN`), and group PRs by that number. A single ticket routinely ships as a main PR plus 1-2 small follow-up fixes — that's normal delivery, not inflation, and the bounty table (Step 5f) must report and sum at the **ticket** level. A PR with no extractable ticket number stands alone as its own group.
+
+**Why this is mandatory, not a nice-to-have:** a September 2026 manual audit (Tobi, 2026-10-01) found the skill's raw per-PR count was overpaying specifically because `split-suspect` (below) was defined loosely enough ("shared prefix or keywords") that a run-it-by-hand agent either under-applied it entirely (counted every PR) or over-applied it (collapsed PRs that were genuinely separate tickets shipped fast, just sharing a title prefix like `feat(analytics):`). Grouping by the actual ticket number first removes the ambiguity: PRs that share a ticket number are unambiguously one deliverable; PRs that merely share a title prefix but have *different* ticket numbers are unambiguously separate work and must never be collapsed into each other.
+
 ### Advisory flags
 
 Most flags are **informational only** — the manager reviews during the 48-hour review period (Step 7). Exception: `split-suspect` is a **soft auto-deduction** (see below).
 
-- **`split-suspect`**: 3+ S-tier PRs from the same author merged within 24 hours with related titles (shared prefix or keywords) — likely one deliverable split into micro-PRs. **Soft auto-deduction:** collapse the group into a single S payout (500 KES total instead of N × 500). Show in the report as `split-suspect: merged [N] PRs → 1 × S`. The manager can override during the review period with a one-line justification — but the default is collapsed.
+- **`split-suspect`**: within a single **ticket's** group of PRs (Step 3a) — not merely a shared title prefix — 3+ of them are **all S-tier** and merged within roughly a 24-hour window of each other. This is iterative fixup-commits-as-separate-PRs on the same piece of work, not 3 separate deliverables. **Soft auto-deduction:** collapse that S-tier sub-cluster into a single S payout (500 KES total instead of N × 500). Show in the report as `split-suspect: ticket #NNNN, merged [N] S-tier PRs → 1 × S`. A ticket's main feature PR, if M/L/XL, is priced separately and never folded into the collapse — only the S-tier fixup sub-cluster collapses. PRs on the same ticket more than ~24-48h apart are a legitimate later return to the ticket, not a split — do not force-collapse those. **Never collapse PRs that merely share a title prefix (e.g. `feat(analytics): ...`) but cite DIFFERENT ticket numbers** — that's parallel, separately-planned work shipped quickly, not one deliverable split up; treat each distinct ticket number as its own group per Step 3a.
 - **`inflate-suspect`**: Files/lines disagree by 2+ tiers (e.g., 20 files but 50 lines)
 - **`churn-suspect`**: PR where deletions > 80% of additions AND net codebase change ≈ 0 (moved/renamed code). A PR that **net deletes** code (additions - deletions is significantly negative) is `cleanup` — not flagged, this is valuable work
 - **`generated-heavy`**: >50% of lines are in files matching generated/vendor patterns
@@ -189,6 +200,8 @@ Report these separately as **CI/deploy noise** so they don't inflate feature vel
 **Exclude any merged PR whose `headRefName` is itself one of the repo's configured `integration_branches`**, regardless of title, author, or repo. These are staging→main (or equivalent) promotion merges — the diff is a duplicate of feature PRs already paid when they landed on the earlier integration branch, not new authored work. Detect this with `gh pr view <n> --json headRefName` (or pull `headRefName` directly in the Step 2 `gh pr list --json` call — it's available there too, no extra API call needed) and compare against `repo.integration_branches`. Do **not** rely on title pattern-matching (`"Staging"`, `"Merge branch"`) as the primary signal — a promotion PR can be titled anything; the head-branch check is the only reliable one.
 
 **Why this is mandatory, not advisory, and why it's called out separately from the title-based CI-noise check above:** this exact bug recurred for three consecutive monthly runs (July, August, September 2026) before being written into this file. July's payout found it, manually excluded it for that one report, and recorded "structural fix shipped to the pulse skill" in `reports/engineering-pulse/2026-07-verification.md` — but the fix was applied only to that report's numbers, never actually committed here. August's run had to re-derive and reapply the exact same exclusion from scratch (visible in `reports/engineering-pulse/2026-08-payout.md`'s "promotion PRs (head branch = integration branch) excluded structurally" note) — again without landing it here. September's run (this one) repeated the mistake a third time, overpaying one engineer by roughly 10,000 KES before a third manual catch. If you are an agent running this skill and you find yourself making this exclusion by hand again, that is the signal this section failed to prevent — fix the detection code path, don't just fix this month's table.
+
+**Even the September "structural fix" itself initially under-applied this check — the exact bug recurred a 4th time, smaller, same session.** The v3.6.0 fix correctly checked `headRefName`, but the agent applying it that run still reached for the 3 PRs literally *titled* "Staging" and missed a 4th PR (nts #459) that had `headRefName == "staging"` but a normal-looking title (`"fix(#3961): remove S5 Your hosts section, renumber S6→05"`). A later manual ticket-level audit caught it. **The lesson: do not eyeball which PRs "look like" promotion merges and then verify just those. Programmatically check `headRefName` against `repo.integration_branches` for every single PR in the pulled set — the promotion PR with an innocuous title is the one this check exists to catch, not the one titled "Staging."** Before finalizing Step 5f's bounty table, do one explicit pass: for every PR in every author's row, assert `headRefName not in integration_branches`; if that assertion would fail for any PR still in the priced set, the table is wrong.
 
 ### Step 4c: Revert-pair exclusion (mechanical, not judgment)
 
@@ -219,7 +232,11 @@ Use the analysis window length (not first-to-last PR), so someone who shipped 4 
 Mark multi-repo contributors.
 
 ### 5f. Bounty Estimate
+First, show the **ticket-level breakdown per author** (Step 3a groups): a table of Ticket # | description | PR count | tier(s) | payable KES. This is the evidence trail — it's what lets the manager (or a later audit) see *why* a number is what it is, not just the total. Then roll up:
+
 | Author | S × 500 | M × 1,000 | L × 2,000 | XL × 3,500 | Gross (KES) | Revert Deductions | Net (KES) |
+
+**Tier counts in this roll-up table are POST-ticket-grouping and POST-split-suspect-collapse** — i.e. they count payable ticket-level line items, not raw PRs. A ticket with 2 PRs (a feature + a follow-up fix) contributes 2 line items normally; a ticket with a collapsed S-tier cluster contributes 1.
 
 **Gross** = sum of (tier count × tier rate) for all feature PRs.
 
