@@ -93,6 +93,7 @@ git commit -m "feat: add specific feature"
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
+- Name the target interface before the steps: for any module you're changing, state its contract — inputs, outputs, invariants, ordering, error modes — using the `/codebase-design` vocabulary. A plan that says "edit the hook" is a plan that guesses; one that names the interface is a plan an agent can execute.
 
 ## Execution Handoff
 

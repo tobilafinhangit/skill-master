@@ -172,6 +172,13 @@ Fizzy gotchas: `.json` suffix on every endpoint; **`User-Agent` header is mandat
 
 ## Notes
 
+- **For module-shape questions, use `/codebase-design`.** When the critique recommends extracting,
+  merging, or re-cutting a module, name its shape in that skill's vocabulary (**module**,
+  **interface**, **depth**, **seam**) and run its **deletion test**: if deleting the module makes the
+  complexity vanish it was a pass-through; if it reappears across N callers it was earning its keep.
+  The reference supplies the words — this skill is the driver, so don't redesign shape off the back
+  of it alone.
+
 ## Changelog
 
 - **1.1.0 (2026-09-09):** Added the mandatory MCP surface hard gate and required validation of runtime, scope, cost, registry, documentation, and live-dispatch evidence.

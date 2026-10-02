@@ -20,3 +20,5 @@ Each round the user answers reshapes the tree — settled decisions push the fro
 Finding _facts_ is your job, never the user's. When a frontier question needs a fact from the environment (filesystem, tools, etc.), dispatch a sub-agent to find it — don't ask the user for anything you could look up yourself. Don't block on it: a running exploration is an unsettled prerequisite, so only the questions downstream of it wait for the sub-agent to report — ask the rest of the frontier now. The _decisions_ are the user's — put each to them and wait.
 
 The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed. Do not act on it until the user confirms you have reached a shared understanding.
+
+**Vocabulary:** when the thing being grilled is code's shape, reach for `/codebase-design` (**module**, **interface**, **depth**, **seam**, **adapter**); when it's the domain's words, reach for `/domain-modeling`. Pin the language before you pin the design — half of "we disagree" is two people meaning different things by the same word.

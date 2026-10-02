@@ -29,6 +29,8 @@ Some skills were originally written against one team's internal setup (a specifi
 
 A few skills also reference optional `.claude/rules/*.md` deep-dive files from the original author's private repos. Those are supplementary, not required — the skills work from their own inline instructions if those files aren't present in your repo.
 
+Two skills — `codebase-design` and `domain-modeling` — are adapted from [Matt Pocock's MIT-licensed skills repo](https://github.com/mattpocock/skills). Each `SKILL.md` carries its own attribution and a note on what was changed.
+
 ## Docs
 
 - [Multi-IDE installation guide](docs/installation-multi-ide.md)

@@ -308,10 +308,11 @@ Before making any shared change:
 
 | After Impact Analysis | Use This Skill |
 |-----------------------|----------------|
+| Naming the change's shape (seam, adapter, depth) | `codebase-design` |
 | Risk is 🟢 Safe | Proceed to implementation |
 | Risk is 🟡 Moderate | Use `planning` skill to sequence updates |
 | Risk is 🔴 High | Use `brainstorming` skill to redesign |
-| Database migration needed | Use `/create-migration` workflow |
+| Database migration needed | Ground with `db-schema-oracle`, follow `grooming-architect`'s migration rails, verify with `migration-verify` |
 | API versioning needed | Use `planning` for migration roadmap |
 
 ---

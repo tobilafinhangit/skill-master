@@ -1,6 +1,6 @@
 ---
 name: sync-qa-mirror
-description: Syncs the qa-mirror branch (a production-DB-backed preview) with the integration branch and verifies production-parity readiness — reviewed migrations applied, required Edge Functions deployed and verified. Standalone: no Fizzy card, tester assignment, or testing guide involved. Use when the user wants to refresh qa-mirror for ad hoc near-production testing, or is invoked by qa-handoff when qa-mirror is the selected target for a PR handoff.
+description: Syncs the qa-mirror branch (a production-DB-backed preview) with the integration branch and verifies production-parity readiness — reviewed migrations applied, required Edge Functions deployed and verified. Standalone, with no Fizzy card, tester assignment, or testing guide involved. Use when the user wants to refresh qa-mirror for ad hoc near-production testing, or is invoked by qa-handoff when qa-mirror is the selected target for a PR handoff.
 version: 1.0.0
 license: MIT
 ---
