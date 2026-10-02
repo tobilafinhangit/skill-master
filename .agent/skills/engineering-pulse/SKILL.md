@@ -1,7 +1,7 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.15.0
+version: 3.16.0
 license: MIT
 metadata:
   author: VettedAI
@@ -199,6 +199,18 @@ Before classification, subtract from the line count:
 Within a ticket group (Step 3a), pay the **highest-tier PR only**. Every other PR on that ticket pays **0**, unless that PR is itself M-tier or above. This applies regardless of who opened the follow-up: a fix on someone else's ticket is part of that ticket, not a separate payout. Show each as `follow-up: ticket #NNNN, PR #N → 0` in the report.
 
 **Why this is mandatory:** September 2026. David Busuru flagged that his one-line fix (#405, +1/-1) on Liban Hassan's ticket #3681 had been paid 500 KES. An audit of the month found seven more follow-up PRs paid as separate S-tier lines (4,000 KES in total, from 2 to ~76 lines each) on tickets whose main PR was already paid. Paying S for every follow-up rewards splitting work into many PRs, not delivering more of it.
+
+### Step 3c: Small-work floor (mandatory, effective October 2026 work)
+
+After Step 3b collapses a ticket to its payable PR, if that PR has **fewer than 20 net lines** (after the generated-file deductions in Step 3) it pays **half rate**: an S-tier PR pays 250 KES, not 500. Lower-tier-wins means a PR under 20 lines is always S, so the floor only ever halves an S.
+
+- **Applies to the ticket's payable PR** (the highest-tier one), not to every PR. A ticket whose best PR is under 20 lines pays 250.
+- **List every floored PR in the report** as `floor: ticket #NNNN, PR #N, N net lines → 250`, with the engineer, so the manager can spot ones that matter.
+- **Manager override:** during the 48-hour review (Step 7) the manager may mark a floored PR as *significant* (security patch, production-outage fix). It then pays full S. Log a one-line justification, same as other overrides.
+- **Advances use the floored value.** An open-PR advance (Step 8) on a PR under 20 lines is 50% of the floored rate (125), and draw-down at merge re-applies the floor to the merged size.
+- **Not retroactive.** Applies to work merged from 1 October 2026. The September 2026 payout is unchanged (Kennedy Kariuki's #2190 at 10 lines and #2191 at 14 lines were paid a full 500).
+
+**Why:** September 2026. After the follow-up audit (Step 3b), the remaining case was tiny standalone tickets paid a full S (two of Kennedy's, 24 lines in total). The tier table has no minimum size, so these were legitimate under it; the floor is a policy decision by Tobi (2026-10-02), not a bug fix.
 
 ### Advisory flags
 
@@ -429,6 +441,15 @@ If the month has fewer than 31 days, shift accordingly (e.g., Feb: 26th → 28th
 3. **Manager resolves disputes** — one-line justification logged in the report for each override
 4. **Final payout** — after the review period closes, the manager confirms the net amounts
 
+### Rule-change note for the monthly DM
+
+The monthly DMs (`notify.py` in the vetted-invoices repo) carry a one-line **"what changed this month"** whenever a payout rule changed since the last announcement. Each run: draft that line from the changelog below for every entry marked `announced: no`, show it to the manager, and mark it `announced: yes` only after the manager confirms the DMs went out. Never send it automatically.
+
+Rule changelog:
+- 2026-10 — Follow-up fixes (v3.15.0): a ticket pays its highest-tier PR only; extra PRs on it pay 0 unless M+. Already applied to the September payout. `announced: no` (only David was affected and was told directly)
+- 2026-10 — Small-work floor (v3.16.0): a standalone PR under 20 net lines pays half rate; applies to October 2026 work onward. `announced: no`
+- 2026-10 — Stale-PR review (v3.16.0): PRs open 60+ days are flagged for manager review each month; nothing expires automatically. `announced: no`
+
 ### Late PRs (merged after the 28th)
 
 PRs merged between the 28th and end of month are included in the **next** month's payout report. The cutoff is the `--until` date in the payout report. This avoids re-generating the report after disputes are resolved.
@@ -453,6 +474,7 @@ When the user passes `--pre-invoice` (or asks for "pre-invoices" / "bounty state
 2. **`reports/payouts/balances.json`** (in the working repo) — append-only ledger of explicit advance agreements. Most months it's empty. Each entry has lifecycle: `pending` → `applied` (one or more periods) → `settled`. Each pending entry can include an `apply_when` condition (currently supports `gross >= NNNN`, `gross > NNNN`, etc.) that gates auto-application — useful when an advance shouldn't be drawn down until the engineer's monthly gross bounty crosses a threshold (so we don't compound assignment shortfalls). When the condition is met, the skill proposes applying the advance; when it isn't met, the engineer's statement renders a "carried forward" block explaining the rollover. The skill never auto-writes entries — manual confirmation required (see the confirmation gate below) — but it MUST always **propose** the two things below; silently skipping the proposal is the actual failure mode this note exists to prevent (it happened: this step existed only as a section header in old report prose, "Open-PR half-bounty (policy, effective July 2026)," with no SKILL.md procedure behind it — several months' worth of still-open PRs went unvalued as a result, discovered only when an unrelated audit went looking for it).
    - **Open-PR half-bounty (policy, effective July 2026): every run must check for NEW advances to propose, not just apply existing ones.** For every bounty engineer, list PRs opened in the period but still unmerged at the period's end (`gh pr list --state open --author <login> --created <period-range>`). Value each at its tier (same files/lines rules as merged PRs) and propose a new `pending` entry at 50% of that total, with `pr_list` naming every PR and `valued_at_open_kes` the full-tier sum — mirror the existing entries' schema exactly. Surface this as an explicit confirmation prompt alongside any existing-advance draw-downs; never silently omit it because "nothing changed" — a new advance is itself a kind of change.
    - **Draw-down is per-PR, not per-entry.** When a listed PR later merges, re-tier it at merge time and pay only the REMAINING 50% (full tier value minus what was already advanced) — never re-pay the first half. A PR that closes unmerged forfeits its unpaid half; no clawback of the half already paid.
+   - **Stale-PR review (60 days, effective October 2026 run):** every run lists each PR in a `pending` advance entry that has been open **60+ days, counted from the PR's open date** (not the advance date), with its engineer, age and pending half. Surface it as a table for the manager to decide each one (keep waiting / ask the engineer / close and forfeit). **Nothing expires automatically** — a stuck PR may be waiting on review, not the engineer. Known at 2026-10-02, to appear in the October run: Kennedy Kariuki #337, #338, #343, #375, #1763 (65–81 days, 4,250 KES pending) and oussama22x #314, #318, #334 (82–89 days, 1,000 KES pending).
 3. **`pre-invoice-template.md`** (next to this SKILL.md) — markdown template with placeholders for the rendering step.
 
 ### Output
