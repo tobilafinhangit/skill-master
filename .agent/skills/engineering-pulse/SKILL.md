@@ -1,14 +1,14 @@
 ---
 name: engineering-pulse
 description: Cross-repo engineering productivity analysis with bounty estimation. Use when the user wants contributor stats, PR velocity, workload distribution, team performance snapshots, or bounty payout projections.
-version: 3.14.0
+version: 3.15.0
 license: MIT
 metadata:
   author: VettedAI
   category: engineering-management
   tags: [productivity, performance-review, team-health, velocity, delegation, bounty]
   created: 2026-03-11
-  updated: 2026-10-01
+  updated: 2026-10-02
 argument-hint: "[weekly|monthly|quarterly] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--pre-invoice] [--payout-json] [--draft|--payout]"
 ---
 
@@ -194,11 +194,17 @@ Before classification, subtract from the line count:
 
 **Why this is mandatory, not a nice-to-have:** a September 2026 manual audit (Tobi, 2026-10-01) found the skill's raw per-PR count was overpaying specifically because `split-suspect` (below) was defined loosely enough ("shared prefix or keywords") that a run-it-by-hand agent either under-applied it entirely (counted every PR) or over-applied it (collapsed PRs that were genuinely separate tickets shipped fast, just sharing a title prefix like `feat(analytics):`). Grouping by the actual ticket number first removes the ambiguity: PRs that share a ticket number are unambiguously one deliverable; PRs that merely share a title prefix but have *different* ticket numbers are unambiguously separate work and must never be collapsed into each other.
 
+### Step 3b: Follow-up fixes are part of the ticket (mandatory)
+
+Within a ticket group (Step 3a), pay the **highest-tier PR only**. Every other PR on that ticket pays **0**, unless that PR is itself M-tier or above. This applies regardless of who opened the follow-up: a fix on someone else's ticket is part of that ticket, not a separate payout. Show each as `follow-up: ticket #NNNN, PR #N → 0` in the report.
+
+**Why this is mandatory:** September 2026. David Busuru flagged that his one-line fix (#405, +1/-1) on Liban Hassan's ticket #3681 had been paid 500 KES. An audit of the month found seven more follow-up PRs paid as separate S-tier lines (4,000 KES in total, from 2 to ~76 lines each) on tickets whose main PR was already paid. Paying S for every follow-up rewards splitting work into many PRs, not delivering more of it.
+
 ### Advisory flags
 
 Most flags are **informational only** — the manager reviews during the 48-hour review period (Step 7). Exception: `split-suspect` is a **soft auto-deduction** (see below).
 
-- **`split-suspect`**: within a single **ticket's** group of PRs (Step 3a) — not merely a shared title prefix — 3+ of them are **all S-tier** and merged within roughly a 24-hour window of each other. This is iterative fixup-commits-as-separate-PRs on the same piece of work, not 3 separate deliverables. **Soft auto-deduction:** collapse that S-tier sub-cluster into a single S payout (500 KES total instead of N × 500). Show in the report as `split-suspect: ticket #NNNN, merged [N] S-tier PRs → 1 × S`. A ticket's main feature PR, if M/L/XL, is priced separately and never folded into the collapse — only the S-tier fixup sub-cluster collapses. PRs on the same ticket more than ~24-48h apart are a legitimate later return to the ticket, not a split — do not force-collapse those. **Never collapse PRs that merely share a title prefix (e.g. `feat(analytics): ...`) but cite DIFFERENT ticket numbers** — that's parallel, separately-planned work shipped quickly, not one deliverable split up; treat each distinct ticket number as its own group per Step 3a.
+- **`split-suspect`**: within a single **ticket's** group of PRs (Step 3a) — not merely a shared title prefix — 3+ of them are **all S-tier** and merged within roughly a 24-hour window of each other. This is iterative fixup-commits-as-separate-PRs on the same piece of work, not 3 separate deliverables. **Soft auto-deduction:** collapse that S-tier sub-cluster into a single S payout (500 KES total instead of N × 500). Show in the report as `split-suspect: ticket #NNNN, merged [N] S-tier PRs → 1 × S`. A ticket's main feature PR, if M/L/XL, is priced separately and never folded into the collapse — only the S-tier fixup sub-cluster collapses. PRs on the same ticket more than ~24-48h apart are a legitimate later return to the ticket, not a split — do not force-collapse those. **Never collapse PRs that merely share a title prefix (e.g. `feat(analytics): ...`) but cite DIFFERENT ticket numbers** — that's parallel, separately-planned work shipped quickly, not one deliverable split up; treat each distinct ticket number as its own group per Step 3a. **Superseded in practice by Step 3b (v3.15.0):** a ticket now pays its highest-tier PR only, so an S-tier cluster never pays more than one S.
 - **`inflate-suspect`**: Files/lines disagree by 2+ tiers (e.g., 20 files but 50 lines)
 - **`churn-suspect`**: PR where deletions > 80% of additions AND net codebase change ≈ 0 (moved/renamed code). A PR that **net deletes** code (additions - deletions is significantly negative) is `cleanup` — not flagged, this is valuable work
 - **`generated-heavy`**: >50% of lines are in files matching generated/vendor patterns
