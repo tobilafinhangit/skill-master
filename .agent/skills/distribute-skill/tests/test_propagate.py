@@ -46,5 +46,27 @@ class PropagateTest(unittest.TestCase):
         self.assertIn("old_pointer", result)
 
 
+    def test_canonical_sha_fetches_before_resolving(self):
+        # A stale local origin/main must not be propagated: the runner
+        # fetches first, so a commit pushed after the clone is seen.
+        upstream = self.repo()
+        clone = pathlib.Path(tempfile.mkdtemp(prefix="propagate-clone-"))
+        subprocess.check_call(["git", "clone", "-q", str(upstream), str(clone)])
+        self.git(upstream, "branch", "-M", "main")
+        self.git(clone, "fetch", "-q", "origin")
+        (upstream / "new.txt").write_text("new\n")
+        self.git(upstream, "add", ".")
+        self.git(upstream, "commit", "-qm", "newer")
+        newest = self.git(upstream, "rev-parse", "HEAD")
+        self.assertEqual(propagate.canonical_sha(clone), newest)
+
+    def test_pointer_commits_use_github_known_identity(self):
+        # Vercel rejects commits from emails GitHub does not recognise.
+        self.assertEqual(propagate.COMMIT_EMAIL, "tobi@venturefor.africa")
+        self.assertEqual(propagate.COMMIT_NAME, "tobilafinhangit")
+        source = (HERE.parent / "scripts" / "propagate.py").read_text()
+        self.assertNotIn("codex@local", source)
+
+
 if __name__ == "__main__":
     unittest.main()

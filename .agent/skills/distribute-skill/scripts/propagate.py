@@ -15,6 +15,10 @@ import sys
 import tempfile
 
 CANONICAL = "/Users/USER/code/repos/skill-master"
+# Pointer commits must use a GitHub-known identity: Vercel rejects deploys of
+# commits authored by an unrecognised email (worktree-git-author-identity).
+COMMIT_NAME = "tobilafinhangit"
+COMMIT_EMAIL = "tobi@venturefor.africa"
 POLICIES = {
     "vettedai": {"path": "/Users/USER/code/repos/vettedai-audition-supabase-version", "integration": "lovable-staging", "mode": "direct"},
     "congrats": {"path": "/Users/USER/code/repos/vetted-congrats-Flow-GENEROUS", "integration": "verify-deployments", "mode": "pr"},
@@ -59,8 +63,10 @@ def inspect_consumer(name, policy):
     }
 
 
-def canonical_sha():
-    result = git(CANONICAL, "rev-parse", "origin/main^{commit}")
+def canonical_sha(canonical=CANONICAL):
+    # Fetch first: a stale local origin/main would propagate an OLDER pointer.
+    git(canonical, "fetch", "--quiet", "origin", "main")
+    result = git(canonical, "rev-parse", "origin/main^{commit}")
     return result.stdout.strip()
 
 
@@ -69,6 +75,8 @@ def update_worktree(repo, ref, sha, action=None):
     shutil.rmtree(temp)
     worktree = str(temp)
     try:
+        if git(repo, "fetch", "--quiet", "origin", ref, check=False).returncode != 0:
+            return {"status": "failed", "error": "integration ref fetch failed"}
         added = git(repo, "worktree", "add", "--detach", worktree, f"origin/{ref}", check=False)
         if added.returncode != 0:
             return {"status": "failed", "error": "worktree creation failed"}
@@ -123,7 +131,7 @@ def apply_consumer(name, policy, sha):
             return {"status": "failed", "error": "pointer branch creation failed"}
         if git(worktree, "add", "submodules/skill-master", check=False).returncode != 0:
             return {"status": "failed", "error": "pointer staging failed"}
-        if git(worktree, "-c", "user.name=Codex", "-c", "user.email=codex@local",
+        if git(worktree, "-c", f"user.name={COMMIT_NAME}", "-c", f"user.email={COMMIT_EMAIL}",
                "commit", "-m", "chore(skills): bump skill-master", check=False).returncode != 0:
             return {"status": "failed", "error": "pointer commit failed"}
         if policy["mode"] == "direct":
