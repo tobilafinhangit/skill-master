@@ -3,6 +3,17 @@
 Each gate in `SKILL.md` exists because the softer version failed in production.
 Summaries only — the normative behavior is the gate itself.
 
+## Epic siblings and riders judged by column alone (G3a)
+
+Releases failed in two opposite directions. Too loose: a Merge-to-Prod card
+shipped while an epic sibling it depended on sat in QA Failed — the skill
+looked at each card alone and never warned. Too strict: any rider (code on
+staging whose card was elsewhere) blocked the run, even one only waiting on a
+manual UI pass, which practice showed is safe to ship. The rider triage lived
+in one repo rule no skill read. Hence: the shared epic gate
+(`<skill-master-root>/references/release-epic-gate-policy.md`), resolved
+before the verdict and enforced by `manifest.py`.
+
 ## Pagination truncation (G2)
 
 A Merge-to-Prod column holding 44 cards read as 15: the skill fetched one

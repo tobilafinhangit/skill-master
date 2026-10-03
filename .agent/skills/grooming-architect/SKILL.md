@@ -1,7 +1,7 @@
 ---
 name: grooming-architect
 description: Optimized for Human+AI Agent workflows. Converts high-level product intent into technical tickets that include file anchors, logic constraints, and verification protocols for coding agents.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Grooming Architect (AI-Ready Edition)
@@ -157,6 +157,7 @@ ticket.
 
 ### 9. Changelog
 
+- **1.2.0 (2026-10-03):** Epics tag every child card `epic-<slug>` in Fizzy so release gates can find siblings (see "Epic tag").
 - **1.1.0 (2026-09-09):** Made the MCP Surface Decision mandatory for new, reopened, and materially changed tickets.
 
 ---
@@ -212,6 +213,17 @@ Explain the "Debate" (conflict), the "Pivot" (decision), and the "Mechanism" (ho
   3. [honest one-liner]
 
 ---
+
+## Epic tag (epics only — 2+ cards from one grooming)
+
+Fizzy has no epic or parent field. Release workflows (`merge-to-prod` §3.5, `selective-staging-merge`) find a card's siblings through a shared tag, so every card in an epic gets it:
+
+1. Slug = the `.claude/tickets/<slug>/` folder name. Tag title = `epic-<slug>`.
+2. Tag each card with the Fizzy CLI: `fizzy card tag <N> --tag epic-<slug>` (creates the tag on first use).
+3. **The command is a TOGGLE** — run on a card that already has the tag, it *removes* it. Always `GET /cards/<N>.json` first and tag only if `epic-<slug>` is absent from `tags`; then read the card back and assert it is present. Never re-run blindly on retry.
+4. Write dependency order explicitly in the folder `README.md` / `BUILD-PROMPTS.md` as an `Order:` line (e.g. `Order: A1 (#3940) → A2 (#3941) → A3 (#3942)`) and say "X MUST merge before Y" where it applies. Release gates treat cards as independent unless such a statement exists.
+
+Single-card tickets get no epic tag.
 
 ## 8. Build-Prompts Emission (epics only)
 

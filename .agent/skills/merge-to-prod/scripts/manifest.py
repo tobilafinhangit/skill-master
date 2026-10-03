@@ -30,6 +30,12 @@ CARD_STATES = ("covered", "already_on_target", "not_ready", "unknown",
 MIGRATION_STATES = ("verified_applied", "missing", "partial_or_drifted",
                     "unknown", "not_applicable")
 VERDICTS = ("ready", "blocked", "incomplete")
+# Epic/rider gate — see ../../references/release-epic-gate-policy.md
+EPIC_DISPOSITIONS = ("ok", "ship_with_note", "ask", "triage", "hold")
+EPIC_ROLES = ("released", "sibling", "rider")
+EPIC_SOURCES = ("tag", "folder", "refs", "column", "none")
+# qa-failed-triage classes that are NOT a code problem (may ship with note)
+NON_CODE_TRIAGE_CLASSES = (1, 2, 3)
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -204,6 +210,34 @@ def validate(manifest):
             _err(errors, "%s.state must be one of %s"
                  % (where, list(MIGRATION_STATES)))
 
+    epic_gate = manifest.get("epic_gate", [])
+    if not isinstance(epic_gate, list):
+        _err(errors, "epic_gate must be a list")
+        epic_gate = []
+    for i, e in enumerate(epic_gate):
+        where = "epic_gate[%d] (card %s)" % (i, e.get("card"))
+        if e.get("disposition") not in EPIC_DISPOSITIONS:
+            _err(errors, "%s.disposition must be one of %s"
+                 % (where, list(EPIC_DISPOSITIONS)))
+        if e.get("role") not in EPIC_ROLES:
+            _err(errors, "%s.role must be one of %s"
+                 % (where, list(EPIC_ROLES)))
+        if e.get("source") not in EPIC_SOURCES:
+            _err(errors, "%s.source must be one of %s"
+                 % (where, list(EPIC_SOURCES)))
+        if (e.get("disposition") == "ship_with_note"
+                and (e.get("column") or "").strip().lower() == "qa failed"):
+            if e.get("triage_class") not in NON_CODE_TRIAGE_CLASSES:
+                _err(errors, "%s: QA Failed may ship only with a non-code "
+                             "triage_class %s" % (where,
+                                                  list(NON_CODE_TRIAGE_CLASSES)))
+            if not e.get("verdict_comment"):
+                _err(errors, "%s: QA Failed ship_with_note needs the written "
+                             "triage verdict_comment on the card" % where)
+        if e.get("operator_ship_full") and not e.get("risk_comment"):
+            _err(errors, "%s: operator_ship_full needs risk_comment posted "
+                         "before publishing" % where)
+
     # Verdict consistency: ready is only for fully accounted-for runs.
     if verdict == "ready":
         bad_cards = [c.get("number") for c in cards
@@ -219,6 +253,17 @@ def validate(manifest):
         if bad_mig:
             _err(errors, "verdict ready with migrations in "
                          "partial_or_drifted/unknown: %r" % bad_mig)
+        open_epic = [e.get("card") for e in epic_gate
+                     if e.get("disposition") in ("ask", "triage")]
+        if open_epic:
+            _err(errors, "verdict ready with unresolved epic-gate decisions "
+                         "(ask/triage): %r" % open_epic)
+        held = [e.get("card") for e in epic_gate
+                if e.get("disposition") == "hold" and e.get("on_staging")
+                and not e.get("operator_ship_full")]
+        if held:
+            _err(errors, "verdict ready with held riders on staging "
+                         "(hand off to selective-staging-merge): %r" % held)
         if manifest.get("blockers"):
             _err(errors, "verdict ready with non-empty blockers: %r"
                  % manifest.get("blockers"))

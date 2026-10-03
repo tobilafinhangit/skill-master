@@ -312,5 +312,100 @@ class ProseContractTest(unittest.TestCase):
             self.assertIn(case, text, "walkthrough missing for: %s" % case)
 
 
+
+class EpicGateManifestTest(unittest.TestCase):
+    """Epic/rider gate entries (references/release-epic-gate-policy.md)."""
+
+    def ready_with(self, *entries):
+        m = fixture_json("manifest_ready.json")
+        m["epic_gate"] = list(entries)
+        return m
+
+    def test_absent_epic_gate_stays_valid(self):
+        m = fixture_json("manifest_ready.json")
+        m.pop("epic_gate", None)
+        self.assertEqual(manifest.validate(m), [])
+
+    def test_manual_ui_rider_ships_with_note(self):
+        m = self.ready_with({"card": 101, "role": "rider",
+                             "column": "Manual UI/UX Testing",
+                             "disposition": "ship_with_note",
+                             "source": "column"})
+        self.assertEqual(manifest.validate(m), [])
+
+    def test_unresolved_ask_blocks_ready(self):
+        m = self.ready_with({"card": 102, "role": "rider",
+                             "column": "QA to be confirmed",
+                             "disposition": "ask", "source": "column"})
+        errors = manifest.validate(m)
+        self.assertTrue(any("102" in e for e in errors), errors)
+
+    def test_unresolved_triage_blocks_ready(self):
+        m = self.ready_with({"card": 103, "role": "sibling",
+                             "column": "QA Failed",
+                             "disposition": "triage", "source": "tag"})
+        errors = manifest.validate(m)
+        self.assertTrue(any("103" in e for e in errors), errors)
+
+    def test_qa_failed_ship_needs_written_verdict(self):
+        m = self.ready_with({"card": 104, "role": "rider",
+                             "column": "QA Failed",
+                             "disposition": "ship_with_note",
+                             "source": "column"})
+        errors = manifest.validate(m)
+        self.assertTrue(any("104" in e and "verdict" in e for e in errors),
+                        errors)
+        m["epic_gate"][0]["triage_class"] = 2
+        m["epic_gate"][0]["verdict_comment"] = "fizzy comment 9001"
+        self.assertEqual(manifest.validate(m), [])
+
+    def test_qa_failed_code_class_cannot_ship(self):
+        m = self.ready_with({"card": 105, "role": "rider",
+                             "column": "QA Failed",
+                             "disposition": "ship_with_note",
+                             "source": "column", "triage_class": 5,
+                             "verdict_comment": "fizzy comment 9002"})
+        errors = manifest.validate(m)
+        self.assertTrue(any("105" in e for e in errors), errors)
+
+    def test_held_rider_on_staging_blocks_ready(self):
+        m = self.ready_with({"card": 106, "role": "rider",
+                             "column": "QA Failed",
+                             "disposition": "hold", "source": "column",
+                             "on_staging": True})
+        errors = manifest.validate(m)
+        self.assertTrue(any("106" in e for e in errors), errors)
+
+    def test_risk_accepted_rider_needs_risk_comment(self):
+        entry = {"card": 107, "role": "rider", "column": "QA Failed",
+                 "disposition": "hold", "source": "column",
+                 "on_staging": True, "operator_ship_full": True}
+        errors = manifest.validate(self.ready_with(dict(entry)))
+        self.assertTrue(any("107" in e for e in errors), errors)
+        entry["risk_comment"] = "fizzy comment 9003"
+        self.assertEqual(manifest.validate(self.ready_with(entry)), [])
+
+    def test_held_sibling_off_staging_does_not_block(self):
+        m = self.ready_with({"card": 108, "role": "sibling",
+                             "column": "In Progress",
+                             "disposition": "hold", "source": "folder",
+                             "on_staging": False})
+        self.assertEqual(manifest.validate(m), [])
+
+    def test_bad_disposition_rejected(self):
+        m = self.ready_with({"card": 109, "role": "rider",
+                             "column": "QA Failed",
+                             "disposition": "yolo", "source": "column"})
+        self.assertTrue(manifest.validate(m))
+
+    def test_policy_reference_exists(self):
+        path = os.path.join(HERE, "..", "..", "references",
+                            "release-epic-gate-policy.md")
+        with open(path) as f:
+            text = f.read()
+        for heading in ("Finding siblings", "Policy by the sibling",
+                        "Effect on the release"):
+            self.assertIn(heading, text)
+
 if __name__ == "__main__":
     unittest.main()

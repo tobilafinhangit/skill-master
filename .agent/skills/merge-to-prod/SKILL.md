@@ -1,7 +1,7 @@
 ---
 name: merge-to-prod
-description: Opens or updates a staging→main PR covering all Fizzy cards in the "Merge to Prod" column, audits git vs the column (flags shipped cards for closure and premature cards for move-back), and drafts a terse batched PR title/body. Auto-detects integration/target branches and Fizzy board per repo. Use when a batch of tickets has cleared QA + manual UX testing and is ready to ship to production.
-version: 2.0.0
+description: Opens or updates a staging→main PR covering all Fizzy cards in the "Merge to Prod" column, audits git vs the column (flags shipped cards for closure and premature cards for move-back), runs the shared epic/rider gate (Manual UI/UX + Admin Checks riders ship with a note; QA-pending/failed siblings and riders are asked, triaged, or held), and drafts a terse batched PR title/body. Auto-detects integration/target branches and Fizzy board per repo. Use when a batch of tickets has cleared QA + manual UX testing and is ready to ship to production.
+version: 2.1.0
 license: MIT
 ---
 
@@ -178,7 +178,7 @@ Build two maps and require both:
 1. **card → changes**: for each card, the commits/PRs that deliver it (verified per §3.4, not merely matched per §3.3).
 2. **change → evidence**: for every change in the §3.1 inventory, the card + readiness evidence that justifies shipping it — or an explicit `unreviewed` flag.
 
-**Never automatically label unmatched work "Infra / chore."** Inspect each unmatched change. If it is genuinely standing infrastructure (CI config, dependency bump with no behavior change, typo fix with its own review), record the evidence that shows it. Otherwise mark it **unreviewed** — it blocks `ready` (see §3.5).
+**Never automatically label unmatched work "Infra / chore."** Inspect each unmatched change. If it is genuinely standing infrastructure (CI config, dependency bump with no behavior change, typo fix with its own review), record the evidence that shows it. Otherwise mark it **unreviewed** — it blocks `ready` (see §3.6). A change whose card exists but is **not** in the Merge-to-Prod column is a **rider** — §3.5 decides it, not this map.
 
 ### 3.3 Candidate discovery (signals, not verdicts)
 
@@ -203,7 +203,26 @@ Detection order per card (stop at first **verified** hit, not first candidate hi
 - **Account for all required PRs/repositories and any later revert or superseding change.** A multi-PR ticket with one PR unmerged is not covered. A merged fix later reverted is not covered — the revert must be detected (`git log --oneline BASE..HEAD --grep='Revert.*#N'` plus PR state) and the card re-evidenced. A superseded PR (closed in favor of another) counts only via the PR that actually merged.
 - **Sister-repository evidence may be inspected, but cleanup stays scoped.** You may `cd` into a sister checkout (or query its history) to verify a sister-repo card's deliverable. You must NOT close, move, or comment on cards outside this invocation's resolved board ownership — report them, leave them.
 
-### 3.5 Mutually exclusive states and the release verdict
+### 3.5 Epic and rider gate (shared policy — runs before the verdict)
+
+**Read `<skill-master-root>/references/release-epic-gate-policy.md` first.** It is the single source for this gate; `selective-staging-merge` reads the same file. Do not restate or improvise its rules here.
+
+What it adds to this run:
+
+1. **Siblings** — for each Merge-to-Prod card, resolve its epic (tag `epic-<slug>` → ticket folder → description `#refs` → standalone) and read each sibling's **live** column.
+2. **Riders** — for each §3.1 change whose verified card is NOT in the Merge-to-Prod column, read that card's live column.
+3. Apply the policy table: `ok` / `ship_with_note` (Manual UI/UX, Additional Admin Checks) / `ask` (QA to be confirmed, unrecognised column) / `triage` (QA Failed → `qa-failed-triage` classes) / `hold` (In Progress, PR Open, Priority, Grooming).
+4. **Resolve every `ask` and `triage` before the verdict.** `ask` → one `AskUserQuestion` batch (≤4 per call) with what is pending and whether a released card depends on it. `triage` → classify per `qa-failed-triage` inside a subagent; non-code classes 1–3 ship only with the verdict written on the card (cite the comment).
+5. **Dependency**: a held sibling holds a released card only when an explicit statement says the released card depends on it (`Order:` line, "MUST merge before", "depends on #N") → that card becomes `not_ready` (`epic dependency #N held`). Otherwise it ships and the sibling is listed as still open.
+6. **Held rider on staging** → verdict `blocked (excluded work present)` → hand off to `selective-staging-merge` with the rider's units as `--exclude`. If selective cannot isolate it, stop and offer the operator **wait** vs **ship full with recorded risk** (risk comment on the rider's card *before* publishing). Never choose for them.
+
+Record every evaluated card in the manifest's `epic_gate` list: `{card, role: released|sibling|rider, column, disposition, source: tag|folder|refs|column|none, on_staging, triage_class?, verdict_comment?, operator_ship_full?, risk_comment?}`. `scripts/manifest.py` rejects `ready` while any entry is `ask`/`triage`, a held rider is on staging without an operator ship-full decision, or a QA-Failed `ship_with_note` lacks a non-code class + written verdict.
+
+Print the gate table (policy §6) in the audit. Card text stays in subagents; the parent holds only the table.
+
+**Gate G3a (explicit):** every Merge-to-Prod card has an epic source (or `none`), every rider and sibling has a disposition, no `ask`/`triage` left open.
+
+### 3.6 Mutually exclusive states and the release verdict
 
 Each card ends in exactly one state:
 
@@ -220,10 +239,10 @@ Rules:
 - **Missing evidence means `unknown`.** Absence of search matches does not prove `not_ready`.
 - **The close test is merge-base ancestry, nothing softer.** `covered`/`already_on_target` require `git merge-base --is-ancestor <mergeCommit> <pinned-SHA>` run against the repo that owns the fix. Column position, QA comments, `[FIXED]` titles, and rule files are not proof — they mean queued / verified / pattern-learned, not delivered.
 - **Release verdict** over the whole inventory: `ready` | `blocked` | `incomplete`.
-  - `ready`: every change in §3.1 maps to `covered`/`already_on_target`/`non_code_complete` with verified evidence, and every card maps to a state with evidence. Only then may a promotion PR be created/updated.
+  - `ready`: every change in §3.1 maps to `covered`/`already_on_target`/`non_code_complete` with verified evidence — or is a §3.5 `ship_with_note` rider — and every card maps to a state with evidence, and the §3.5 gate has no open decisions. Only then may a promotion PR be created/updated.
   - `blocked`: any card is `not_ready`, any change is `unreviewed`, or any gate failed. Print the proposed PR content AND the blockers; do **not** create or update the promotion PR.
   - `incomplete`: any card is `unknown` or any evidence is missing/partial. Same handling as `blocked`: print, do not publish.
-- **Excluded work on staging → hand off to selective-release workflow.** If staging carries work that must not ship yet, stop this run as `blocked` (excluded work present) and hand off to `selective-staging-merge` 2.0. That workflow must pin fresh source/base revisions, inventory every release unit, validate evidence and dependencies, reconstruct once in an owned worktree, and re-verify immediately before any separately authorized publication. Do not improvise cherry-picks or reuse a prior held-back commit list here.
+- **Excluded work on staging → hand off to selective-release workflow.** "Must not ship yet" is decided by the §3.5 gate (`hold` riders), not by column membership alone — a Manual UI/UX or Admin Checks rider is not excluded work. If staging carries held work, stop this run as `blocked` (excluded work present) and hand off to `selective-staging-merge` 2.0. That workflow must pin fresh source/base revisions, inventory every release unit, validate evidence and dependencies, reconstruct once in an owned worktree, and re-verify immediately before any separately authorized publication. Do not improvise cherry-picks or reuse a prior held-back commit list here.
 - **Revalidate before publication.** Immediately before creating/updating the promotion PR, re-fetch `origin/$STAGING` and `origin/$MAIN`. If either moved since G0, re-pin, refresh every affected evidence item (drift check, inventory, containment), and re-print the audit. Never publish from stale pins.
 
 **Gate G3 (explicit):** the two maps (§3.2) printed with every change accounted for, every card in exactly one state, release verdict stated. `blocked`/`incomplete` never publishes. Revalidation recorded when pins moved.
@@ -301,6 +320,12 @@ Base: <BASE SHA> · Head: <HEAD SHA> · Verdict: ready
 ### Unmatched changes
 - <one-line per §3.1 change with its evidence; unreviewed items never appear here — they block instead>
 
+### Manual check pending (ships now, card stays open)
+- #<num> — Manual UI/UX Testing | Additional Admin Checks | QA to be confirmed (operator: ship) | QA Failed cls N (verdict: <comment ref>)
+
+### Epic siblings still open (not in this release)
+- #<num> — <column> (<disposition>); released #<num> independent of it
+
 ### Migration / go-live checklist
 - <each not-on-prod migration with its §4 state + ordered steps + verification + recovery; raw DDL linked, not pasted, when long>
 
@@ -324,7 +349,7 @@ EXISTING=$(gh pr list --base $MAIN --head $STAGING --state open --json number -q
 - Title: `chore: merge to prod — YYYY-MM-DD batch (N tickets)`. Keep it terse — no filler prose.
 - On `--dry-run`: print the title + body and the exact command that would run. Execute nothing.
 
-**Gate G5 (explicit):** verdict is `ready`, pins revalidated fresh, manifest validates (including its G1 `merge_check` record), managed-section replace used. Otherwise print-and-stop per §3.5.
+**Gate G5 (explicit):** verdict is `ready`, pins revalidated fresh, manifest validates (including its G1 `merge_check` record), managed-section replace used. Otherwise print-and-stop per §3.6.
 
 ---
 
@@ -461,6 +486,12 @@ Moved back to QA to be confirmed (N cards):
 
 Needs human (unknown, N cards):
   #U… — what evidence is missing
+
+Manual check pending (shipped, cards stay open — N):
+  #M… — column
+
+Epic siblings still open (N):
+  #S… — column, held/independent
 
 Next: after PR merges, run `/merge-to-prod --finalize <NNN>` to re-validate and close the shipping cards.
 ```

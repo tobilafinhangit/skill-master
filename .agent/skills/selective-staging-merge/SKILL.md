@@ -1,7 +1,7 @@
 ---
 name: selective-staging-merge
 description: Prepare a verified selective release candidate from an integration branch while holding back unready work. Never mutates the caller worktree or merges, deploys, or publishes without explicit authorization.
-version: 2.0.0
+version: 2.1.0
 license: MIT
 ---
 
@@ -45,6 +45,8 @@ mode: inventory | build | verify | publish
 If the integration branch or target branch cannot be established, stop.
 
 ### 2. Gather evidence and inventory
+
+Decide what to exclude with the shared epic/rider gate — `<skill-master-root>/references/release-epic-gate-policy.md` — the same policy `merge-to-prod` §3.5 uses. `hold` riders seed `--exclude`; `ship_with_note` riders (Manual UI/UX, Additional Admin Checks, operator-approved QA-pending, documented non-code QA-Failed) are includable; `ask`/`triage` must be resolved before `build`. An included unit whose card depends on a held sibling (explicit `Order:` / "depends on" statement) is excluded too. When a held rider shares a unit with included work and cannot be isolated, stop and hand the operator the policy's **wait** vs **ship full with recorded risk** choice — never decide it here.
 
 Read excluded cards’ descriptions and comments. Resolve explicit repository-qualified card↔PR↔commit associations and all required deliverables. Number, title, branch, filename, and keyword matches nominate candidates only; verify the actual PR merge commit and its containment at the pinned revision. Detect later reverts and superseding PRs. A QA-fix item triggers parent-feature investigation; missing parent ownership blocks rather than allowing a known-failing parent to ship.
 
