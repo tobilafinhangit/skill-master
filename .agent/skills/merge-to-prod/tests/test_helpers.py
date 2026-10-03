@@ -407,5 +407,30 @@ class EpicGateManifestTest(unittest.TestCase):
                         "Effect on the release"):
             self.assertIn(heading, text)
 
+class CardlessPatchManifestTest(unittest.TestCase):
+    """Cardless merged-PR patches ride (policy: release-epic-gate-policy.md)."""
+
+    def ready_with_change(self, change):
+        m = fixture_json("manifest_ready.json")
+        m["changes"] = list(m.get("changes", [])) + [change]
+        return m
+
+    def test_cardless_pr_patch_rides_without_card_evidence(self):
+        m = self.ready_with_change({"path": "src/x.tsx", "cardless_patch": True,
+                                    "pr": 2893})
+        self.assertEqual(manifest.validate(m), [])
+
+    def test_cardless_patch_needs_a_merged_pr(self):
+        m = self.ready_with_change({"path": "src/y.tsx", "cardless_patch": True})
+        errors = manifest.validate(m)
+        self.assertTrue(any("src/y.tsx" in e and "pr" in e for e in errors), errors)
+
+    def test_sensitive_cardless_patch_still_rides(self):
+        m = self.ready_with_change({"path": "supabase/migrations/1_x.sql",
+                                    "cardless_patch": True, "pr": 2905,
+                                    "sensitive": True})
+        self.assertEqual(manifest.validate(m), [])
+
+
 if __name__ == "__main__":
     unittest.main()

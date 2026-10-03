@@ -198,6 +198,14 @@ def validate(manifest):
             _err(errors, "%s.path is required" % where)
         if ch.get("unreviewed"):
             continue
+        if ch.get("cardless_patch"):
+            # Cardless patches ride when they came through a merged PR
+            # (release-epic-gate-policy.md §0); `sensitive` only flags.
+            if not ch.get("pr"):
+                _err(errors, "%s (%s): cardless_patch needs its merged pr "
+                             "number — a direct commit with no PR and no card "
+                             "needs evidence" % (where, ch.get("path")))
+            continue
         if not ch.get("evidence"):
             _err(errors, "%s: needs evidence or unreviewed:true "
                          "(never auto-label unmatched work)" % where)

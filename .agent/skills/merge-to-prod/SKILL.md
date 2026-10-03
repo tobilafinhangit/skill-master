@@ -1,7 +1,7 @@
 ---
 name: merge-to-prod
 description: Opens or updates a staging→main PR covering all Fizzy cards in the "Merge to Prod" column, audits git vs the column (flags shipped cards for closure and premature cards for move-back), runs the shared epic/rider gate (Manual UI/UX + Admin Checks riders ship with a note; QA-pending/failed siblings and riders are asked, triaged, or held), and drafts a terse batched PR title/body. Auto-detects integration/target branches and Fizzy board per repo. Use when a batch of tickets has cleared QA + manual UX testing and is ready to ship to production.
-version: 2.1.0
+version: 2.2.0
 license: MIT
 ---
 
@@ -178,7 +178,7 @@ Build two maps and require both:
 1. **card → changes**: for each card, the commits/PRs that deliver it (verified per §3.4, not merely matched per §3.3).
 2. **change → evidence**: for every change in the §3.1 inventory, the card + readiness evidence that justifies shipping it — or an explicit `unreviewed` flag.
 
-**Never automatically label unmatched work "Infra / chore."** Inspect each unmatched change. If it is genuinely standing infrastructure (CI config, dependency bump with no behavior change, typo fix with its own review), record the evidence that shows it. Otherwise mark it **unreviewed** — it blocks `ready` (see §3.6). A change whose card exists but is **not** in the Merge-to-Prod column is a **rider** — §3.5 decides it, not this map.
+**Never automatically label unmatched work "Infra / chore."** Inspect each unmatched change. If it is genuinely standing infrastructure (CI config, dependency bump with no behavior change, typo fix with its own review), record the evidence that shows it. **Cardless merged-PR patches ride** (policy §0): record `cardless_patch: true` + `pr` (+ `sensitive: true` when it touches migrations/billing/auth) — no card evidence needed. A direct commit with no PR and no card that is not standing infra is **unreviewed** — it blocks `ready` (see §3.6). A change whose card exists but is **not** in the Merge-to-Prod column is a **rider** — §3.5 decides it, not this map.
 
 ### 3.3 Candidate discovery (signals, not verdicts)
 
@@ -319,6 +319,9 @@ Base: <BASE SHA> · Head: <HEAD SHA> · Verdict: ready
 
 ### Unmatched changes
 - <one-line per §3.1 change with its evidence; unreviewed items never appear here — they block instead>
+
+### Cardless patches (riding)
+- PR #<n> — <title> (⚠ sensitive: migration | billing | auth — glance before merge)
 
 ### Manual check pending (ships now, card stays open)
 - #<num> — Manual UI/UX Testing | Additional Admin Checks | QA to be confirmed (operator: ship) | QA Failed cls N (verdict: <comment ref>)

@@ -16,8 +16,22 @@ Two populations, one policy:
   NOT in the Merge-to-Prod column. A full promotion ships them whether or not
   anyone meant to.
 
-A rider whose change maps to **no card at all** is not covered here: it stays
-`unreviewed` per the calling skill and blocks `ready`, as before.
+## 0. Cardless patches ride
+
+A change that maps to **no card at all** but came in through a **merged PR**
+is a patch or quick fix (operator policy, 2026-10-03: these don't need cards
+and are usually covered by another card). It **rides** — it does not block
+`ready` and needs no card evidence. Record it as `cardless_patch: true` with
+its `pr`, and list it in the release PR under **Cardless patches (riding)**.
+
+- If it touches `supabase/migrations/`, billing/payment code, auth/RLS/grants,
+  or an edge function's auth gate, mark it `sensitive: true` — it still rides;
+  the flag just puts a ⚠ next to it in the PR list so a reviewer glances at it.
+- A **direct commit with no PR and no card** is not a cardless patch: it needs
+  evidence (standing infra: reconcile merge, deploy-lock record, CI/docs/rules),
+  otherwise it stays `unreviewed` and blocks, as before.
+- If a cardless PR's description names a card, it is not cardless — the card's
+  column decides it via §3.
 
 ## 1. Finding siblings (epic membership)
 
