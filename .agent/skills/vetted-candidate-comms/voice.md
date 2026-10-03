@@ -11,6 +11,7 @@ How Tobi writes to candidates. This overrides generic "professional" defaults.
 
 ## Do
 
+- Default to three short paragraphs. When in doubt, cut one paragraph. Trim don't pad.
 - Open with a genuine thank-you or acknowledgment — never with the decision.
 - Be direct about the outcome; don't soften it into vagueness.
 - Give the real reason briefly (the specific mismatch), then close the loop warmly.
@@ -31,15 +32,13 @@ How Tobi writes to candidates. This overrides generic "professional" defaults.
 ```text
 Hi Gideon,
 
-Thanks for coming back to me — and for the kind words. I really appreciate you taking the time.
+Thanks for coming back to me — and for taking the time.
 
-I've now gone through your background properly. On this role the brief leans on NoSQL, cloud-managed databases and Terraform, which isn't where your strongest work sits — so this one isn't the right fit, and I'd rather tell you plainly now than have you spend time on a process that wouldn't serve you.
+I've gone through your background properly, and on this role the brief leans on NoSQL, cloud-managed databases and Terraform. That isn't where your strongest work sits, so this one isn't the right fit — I'd rather tell you plainly now than have you spend time on a process that wouldn't serve you.
 
-That's on us for reaching out on this brief, not a reflection on you. Your background is a strong one, just better matched to a different kind of database role, and I'd genuinely like to keep you in mind.
+That's on us for reaching out on this brief, not a reflection on you. Your background is a strong one, just better matched to a different database role — and I'd like to keep you in mind if something closer comes up.
 
-Thanks again for your interest. All the best.
-
-Warm regards,
+All the best,
 Tobi
 ```
 

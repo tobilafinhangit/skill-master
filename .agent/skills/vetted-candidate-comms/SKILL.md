@@ -71,6 +71,8 @@ Load `voice.md` (next to this file) plus any examples the user pastes this sessi
 
 ## Framing and templates
 
+Default to **three short paragraphs**. Trim, don't pad — a leaner draft the user tweaks down is better than a fuller one they cut.
+
 ### Headhunted rejection (we reached out)
 
 Own that we made contact. No "your application" language. Frame as role-fit after looking at the brief with the team, and keep the door open for a stronger-fit role.
@@ -78,15 +80,13 @@ Own that we made contact. No "your application" language. Frame as role-fit afte
 ```text
 Hi {{first_name}},
 
-Thanks for coming back to me — and for the kind words. I really appreciate you taking the time.
+Thanks for coming back to me — and for taking the time.
 
-I've now gone through your background properly. On this role the brief is quite specific: it leans on {{specific skills the role needs}}. That isn't where your strongest work sits, so this one isn't the right fit — and I'd rather tell you plainly now than have you spend time on a process that wouldn't serve you.
+I've gone through your background properly, and on this role the brief leans on {{specific skills}}. That isn't where your strongest work sits, so this one isn't the right fit — I'd rather tell you plainly now than have you spend time on a process that wouldn't serve you.
 
-That's on us for reaching out on this brief, not a reflection on you. Your background is a strong one, just better matched to a different kind of {{domain}} role, and I'd genuinely like to keep you in mind — if something closer to your strengths comes up, I'll reach out directly.
+That's on us for reaching out on this brief, not a reflection on you. Your background is a strong one, just better matched to a different {{domain}} role — and I'd like to keep you in mind if something closer comes up.
 
-Thanks again for your interest. Wishing you all the best.
-
-Warm regards,
+All the best,
 Tobi
 ```
 
@@ -97,13 +97,11 @@ Shorter; acknowledge the application; be clear it's a fit call.
 ```text
 Hi {{first_name}},
 
-Thanks for applying for the {{role_title}} role — I appreciate the time you put in.
+Thanks for applying for the {{role_title}} role.
 
-I've gone through your application, and on this occasion I won't be taking it forward: the brief leans on {{specific requirement}}, which isn't where your strengths are strongest.
+I've gone through your application, and on this occasion I won't be taking it forward — the brief leans on {{specific requirement}}, which isn't where your strengths are strongest.
 
 It's a fit call rather than a reflection on you, and I'll keep your details on file in case something closer comes up.
-
-Thanks again, and all the best.
 
 Best,
 Tobi
