@@ -61,7 +61,11 @@ State in one line what you'd send and why. Type: rejection/decline, audition inv
 
 ### 5. Draft using the voice layer
 
-Load `voice.md` (next to this file) plus any examples the user pastes this session. Match register, not just content. Use the templates below as scaffolding, then make it sound like Tobi, not like a template.
+Load `voice.md` (next to this file) plus any examples the user pastes this session. Match register, not just content.
+
+Then **write fresh for this candidate**. The templates below show *shape and register only* — never copy a sentence verbatim and never fill slots into the same email you sent the last candidate. Build the mismatch line from *this* candidate's actual `topGaps` / `riskFlags`, and ground the opening in something real about them.
+
+**Specificity test:** if the draft would still make sense sent to a different candidate unchanged, it's too generic — rewrite it.
 
 ### 6. Output and close out
 
@@ -70,6 +74,8 @@ Load `voice.md` (next to this file) plus any examples the user pastes this sessi
 - If Vetted's behaviour got in the way (e.g. no headhunted rejection variant), log it with `product-idea-capture`.
 
 ## Framing and templates
+
+**Shape, not script.** Each block below shows the structure and register for that situation. The sample wording is illustrative — reword it every time, vary the opening, and swap in the candidate's specific context. Two drafts for two candidates should share structure, not sentences. If you catch yourself reusing a phrase from the last email, change it.
 
 Default to **three short paragraphs**. Trim, don't pad — a leaner draft the user tweaks down is better than a fuller one they cut.
 
@@ -141,6 +147,7 @@ See `voice.md`. Essentials: plain and warm, short beats long, no corporate eulog
 - [ ] Provenance established from evidence and **confirmed with the user**.
 - [ ] Vetted context read; rating and one-line reason stated.
 - [ ] Framing matches provenance (headhunted ≠ applied).
+- [ ] Draft is candidate-specific — passes the specificity test; no sentence reused from the template or the last draft.
 - [ ] Draft is in the user's voice (`voice.md` + session examples).
 - [ ] No unsupported claims, comp, or process promises.
 - [ ] Left as a draft; product gaps logged.

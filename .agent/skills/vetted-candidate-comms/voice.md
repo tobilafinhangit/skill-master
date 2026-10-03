@@ -26,6 +26,7 @@ How Tobi writes to candidates. This overrides generic "professional" defaults.
 - No padding to seem thorough. If a sentence isn't doing work, cut it.
 - Don't over-apologise or spiral into reassurance — one clean, human acknowledgment is enough.
 - Don't paste the user's previous draft back; write fresh.
+- Don't reuse sentences from the template or from the last candidate's email. Vary the opener and the phrasing each time — same shape, different words.
 
 ## Calibration example (headhunted rejection)
 
