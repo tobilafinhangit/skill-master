@@ -75,7 +75,7 @@ If the diff touches `supabase/functions/**`, check whether this repository has `
 ```bash
 if [ -f scripts/check-deploy-lock-drift.ts ]; then
   SLUGS=$(git diff --name-status "$BASE_SHA" "$HEAD_SHA" -- 'supabase/functions/*' \
-    | awk -F'/' '{print $2}' | sort -u | paste -sd, -)
+    | cut -d/ -f2 | sort -u | paste -sd, -)
   if [ -n "$SLUGS" ]; then
     deno run --allow-read scripts/check-deploy-lock-drift.ts --only="$SLUGS"
   fi

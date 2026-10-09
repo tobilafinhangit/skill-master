@@ -61,7 +61,7 @@ If the user provided `--skip-confirm` and a previous message in this chat alread
 git fetch origin --quiet
 TARGET=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||' || echo "main")
 # Determine integration branch:
-INTEGRATION=$(grep -E '^\`[a-z-]+\`' .claude/rules/working-branch.md 2>/dev/null | head -1 | tr -d '`' | awk '{print $1}')
+INTEGRATION=$(grep -E '^\`[a-z-]+\`' .claude/rules/working-branch.md 2>/dev/null | head -1 | tr -d '`' | cut -d' ' -f1)
 INTEGRATION=${INTEGRATION:-lovable-staging}
 ```
 

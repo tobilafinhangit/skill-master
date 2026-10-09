@@ -197,8 +197,8 @@ if [ "${#REPO_NAMES[@]}" -ne "${#REPO_BRANCHES[@]}" ]; then
   exit 1
 fi
 
-lookup_branch() {   # $1 = repo basename -> prints configured integration branch, or "" if unknown
-  local want="$1" i=0
+lookup_branch() {   # ${1} = repo basename -> prints configured integration branch, or "" if unknown
+  local want="${1}" i=0
   while [ "$i" -lt "${#REPO_NAMES[@]}" ]; do
     if [ "${REPO_NAMES[$i]}" = "$want" ]; then
       echo "${REPO_BRANCHES[$i]}"
@@ -340,8 +340,8 @@ Copy a skill to a repo that does NOT use the submodule pattern.
 ### Workflow
 
 ```bash
-TARGET="$1"
-SKILL="$2"
+TARGET="${1}"
+SKILL="${2}"
 SKILL_MASTER="/Users/USER/code/repos/skill-master"
 
 mkdir -p "$TARGET/.agent/skills"

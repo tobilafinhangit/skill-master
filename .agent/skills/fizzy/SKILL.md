@@ -251,7 +251,7 @@ while [ -n "$url" ]; do
   echo "$body" | python3 -c "import sys,json;[print(json.dumps(c)) for c in json.load(sys.stdin)]" >> /tmp/col.jsonl
   url=$(grep -i '^link:' /tmp/h.txt | sed -n 's/.*<\([^>]*\)>; *rel="next".*/\1/p')
 done
-total=$(grep -i x-total-count /tmp/h.txt | tr -d '\r' | awk '{print $2}')
+total=$(grep -i x-total-count /tmp/h.txt | tr -d '\r' | awk '{print $NF}')
 got=$(wc -l < /tmp/col.jsonl)
 [ "$got" = "$total" ] || echo "⚠️ TRUNCATED: got $got of $total"
 ```

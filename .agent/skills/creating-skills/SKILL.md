@@ -23,6 +23,13 @@ Skills created in `.agent/skills/` automatically work across all IDEs if workspa
 - `.cursor/skills/` → `.agent/skills/` (workspace-level symlink)
 - `.claude/skills/` → `.agent/skills/` (workspace-level symlink)
 
+**Never write a `$` followed by a digit in `SKILL.md`.** When a skill is invoked with arguments, Claude Code replaces each dollar-plus-digit token in the skill text with the matching argument word (zero-indexed). There is no warning. Invoking `/fizzy list cards in …` turned an awk field reference into the bare word `in`, a syntax error. Use forms that have no digit after the `$`:
+- awk fields → `awk '{print $NF}'`, or `cut -d' ' -f2`
+- shell positional args → `"${1}"` (braces)
+- money → `USD 125`, not a dollar sign plus digits
+
+Check before you commit: `grep -nE '\$[0-9]' .agent/skills/*/SKILL.md` must print nothing.
+
 **Important:** You do NOT need to create per-skill symlinks. If workspace symlinks exist, the skill is immediately available in all IDEs. If not, recommend running `./scripts/setup-multi-ide-skills.sh`.
 
 ## 2. YAML Frontmatter Standards

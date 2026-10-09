@@ -144,7 +144,7 @@ field on the profile page"] -->
 - **Use "Now you can..." or "We shipped..." framing.** These are action-oriented and put the user in the driver's seat.
 - **DEMO-LED, not try-it-yourself.** Every feature entry should make the reader want to *see it on their own hire* — "shortlist your best fit in days" — never "go log in and click it yourself." The point of a feature, and its reason to book a call, is the outcome it wins, not how to operate it. Do not write self-service how-tos or invite self-onboarding; the action is booking a demo.
 - **The CTA is always a booking link, never the app URL.** Frame each feature's value so the natural next step is "show me this live." We sell by demo; we do not expect a recipient to self-serve the product.
-- **$1B-startup voice.** Confident, precise, outcome-focused. Top-tier operator — the team ships fast, understands the hire deeply, and communicates like humans. Specific numbers over vibes ("cut screening time ~80%") when real.
+- **Billion-dollar-startup voice.** Confident, precise, outcome-focused. Top-tier operator — the team ships fast, understands the hire deeply, and communicates like humans. Specific numbers over vibes ("cut screening time ~80%") when real.
 - **One emoji per feature.** Pick from: ✨ (new), ⚡ (improvement), 🔧 (fix), 🎯 (precision/targeting), 📧 (email/comms), 🤝 (connection/matching), 📅 (scheduling). No emoji salad.
 - **Screenshot placeholders are mandatory** for any visual change. Use HTML comments so they're invisible in rendered markdown but obvious in the source.
 - **Skip INTERNAL changes entirely.** The community doesn't care about refactors, dependency bumps, or infra changes.
@@ -401,7 +401,7 @@ spacing, and improved accessibility.
 
 ## Newsletter Voice Guide
 
-The newsletter voice is **confident builder — a $1B, YC-backed startup** — a top-tier
+The newsletter voice is **confident builder — a billion-dollar, YC-backed startup** — a top-tier
 team that ships fast, knows hiring deeply, and pitches the outcome, not the operation.
 It communicates like humans and sells the live demo, never the self-serve tour.
 

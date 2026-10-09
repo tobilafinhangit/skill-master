@@ -105,13 +105,13 @@ Engineering doesn't ship products alone. Calculate the fully-loaded team cost in
 
 | Role | Ratio to Eng Hours | Typical Rate | Notes |
 |------|-------------------|--------------|-------|
-| Product Management | 0.25-0.40x | $125-200/hr | PRDs, roadmap, stakeholder mgmt |
-| UX/UI Design | 0.20-0.35x | $100-175/hr | Wireframes, mockups, design systems |
-| Engineering Management | 0.12-0.20x | $150-225/hr | 1:1s, hiring, performance, strategy |
-| QA/Testing | 0.15-0.25x | $75-125/hr | Test plans, manual testing, automation |
-| Project/Program Management | 0.08-0.15x | $100-150/hr | Schedules, dependencies, status |
-| Technical Writing | 0.05-0.10x | $75-125/hr | User docs, API docs, internal docs |
-| DevOps/Platform | 0.10-0.20x | $125-200/hr | CI/CD, infra, deployments |
+| Product Management | 0.25-0.40x | USD 125-200/hr | PRDs, roadmap, stakeholder mgmt |
+| UX/UI Design | 0.20-0.35x | USD 100-175/hr | Wireframes, mockups, design systems |
+| Engineering Management | 0.12-0.20x | USD 150-225/hr | 1:1s, hiring, performance, strategy |
+| QA/Testing | 0.15-0.25x | USD 75-125/hr | Test plans, manual testing, automation |
+| Project/Program Management | 0.08-0.15x | USD 100-150/hr | Schedules, dependencies, status |
+| Technical Writing | 0.05-0.10x | USD 75-125/hr | User docs, API docs, internal docs |
+| DevOps/Platform | 0.10-0.20x | USD 125-200/hr | CI/CD, infra, deployments |
 
 **Full Team Multiplier**:
 - **Solo/Founder**: 1.0x (just engineering)

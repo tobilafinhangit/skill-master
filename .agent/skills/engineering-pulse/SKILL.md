@@ -625,10 +625,10 @@ These rates are fixed in KES (Kenyan Shillings). They are intentionally conserva
 
 | Tier | Rate (KES) | ~USD @ 130 | Scope |
 |------|-----------|------------|-------|
-| S | 500 | ~$3.85 | Single, well-defined output with a clear finish line (bug fix, copy edit, UI tweak) |
-| M | 1,000 | ~$7.70 | Complete deliverable with multiple steps or components (new feature, process doc) |
-| L | 2,000 | ~$15.40 | Substantial end-to-end deliverable spanning multiple sessions (full feature, campaign, detailed report) |
-| XL | 3,500 | ~$26.90 | High-judgment deliverable requiring significant planning, iteration, or cross-functional context (system architecture, go-to-market strategy, full product spec) |
+| S | 500 | ~USD 3.85 | Single, well-defined output with a clear finish line (bug fix, copy edit, UI tweak) |
+| M | 1,000 | ~USD 7.70 | Complete deliverable with multiple steps or components (new feature, process doc) |
+| L | 2,000 | ~USD 15.40 | Substantial end-to-end deliverable spanning multiple sessions (full feature, campaign, detailed report) |
+| XL | 3,500 | ~USD 26.90 | High-judgment deliverable requiring significant planning, iteration, or cross-functional context (system architecture, go-to-market strategy, full product spec) |
 
 ### Role-specific notes
 
